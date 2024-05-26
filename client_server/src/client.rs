@@ -4,7 +4,7 @@ use std::io::{self, Write};
 
 use reservas::usuario::Usuario;
 use reservas::reserva::Reserva;
-
+use regex::Regex;
 
 
 #[tokio::main]
@@ -25,7 +25,9 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn read_user_input() -> Result<(String, String, String), io::Error> {
-    let mut name = String::new();
+    let _pattern_email = Regex::new(r"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)").unwrap();
+    let _pattern_dates = Regex::new(r"(\d{4})-(\d{2})\-(\d{2})").unwrap();
+    let mut name: String = String::new();
     let mut email = String::new();
     let mut date = String::new();
 
@@ -34,12 +36,35 @@ fn read_user_input() -> Result<(String, String, String), io::Error> {
     io::stdin().read_line(&mut name)?;
 
     print!("Enter your email: ");
-    io::stdout().flush()?;
-    io::stdin().read_line(&mut email)?;
+    loop {
+        io::stdout().flush()?;
+        io::stdin().read_line(&mut email)?;
+        if _pattern_email.is_match(&email) {
+            break;
+        } else {
+            print!("Invalid email. Please enter a valid email: ");
+        }
+    }
 
     print!("Enter the reservation date (YYYY-MM-DD): ");
-    io::stdout().flush()?;
-    io::stdin().read_line(&mut date)?;
+    loop {
+        io::stdout().flush()?;
+        io::stdin().read_line(&mut date)?;
+        if _pattern_dates.is_match(&date) {
+            let groups = _pattern_dates.captures(&date).unwrap();
+            let year:  u16 = groups.get(1).unwrap().as_str().parse::<u16>().unwrap();
+            let month: u16 = groups.get(2).unwrap().as_str().parse::<u16>().unwrap();
+            let day:   u16 = groups.get(2).unwrap().as_str().parse::<u16>().unwrap();
+            if year >= 2024 && day <= 30 {
+                if month >= 1 && month <= 12 {
+                    break;
+                }
+            }
+            print!("Something wrong, Please enter a valid date (YYYY-MM-DD):");
+        } else {
+            print!("Invalid date. Please enter a valid date (YYYY-MM-DD): ");
+        }
+    }
 
     Ok((name.trim().to_string(), email.trim().to_string(), date.trim().to_string()))
 }

@@ -354,6 +354,7 @@ name = "client_server"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "regex",
  "reqwest",
  "reservas",
  "serde",
