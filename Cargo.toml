@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "client_server",
+    "reservas"
+]
+resolver = "2"

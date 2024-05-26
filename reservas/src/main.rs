@@ -1,10 +1,9 @@
 // main.rs
-
+//use client_server::client;
+/*/
 mod usuario;
 mod reserva;
 mod sistema;
-mod client;
-mod server;
 
 use client::main as start_client;
 use server::main as start_server;
@@ -28,3 +27,4 @@ async fn main() {
         eprintln!("Error waiting for server: {}", e);
     }
 }
+*/
