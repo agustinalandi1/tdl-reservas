@@ -1,6 +1,6 @@
 // main.rs
 //use client_server::client;
-/*/
+/*
 mod usuario;
 mod reserva;
 mod sistema;
