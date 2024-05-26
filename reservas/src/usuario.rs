@@ -1,25 +1,8 @@
-use crate::habitacion::Habitacion;
-use crate::sistema::SistemaReservas;
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize)]
 pub struct Usuario {
-    tiene_reserva: bool,
-    nombre: String,
-    mail: String,
+    pub id: u32,
+    pub name: String,
+    pub email: String,
 }
-
-impl Usuario {
-    fn nuevo_usuario(tiene_reserva: bool, nombre: String, mail: String) -> Usuario {
-        Usuario {
-            tiene_reserva,
-            nombre,
-            mail,
-        }
-    }
-
-    fn solicitar_disponibilidad(&self, sistema: &SistemaReservas, fecha: &str) -> Vec<Habitacion> {
-        sistema.obtener_habitaciones_disponibles(fecha)
-    }
-}
-
-
-/*A implementar crear_reserva, editar_reserva, cancelar_reserva */
