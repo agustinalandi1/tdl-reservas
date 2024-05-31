@@ -39,11 +39,13 @@ fn read_user_input() -> Result<(String, String, String), io::Error> {
     loop {
         io::stdout().flush()?;
         io::stdin().read_line(&mut email)?;
-        if _pattern_email.is_match(&email) {
+        
+        if _pattern_email.is_match( &email.trim().trim_end()) {
             break;
         } else {
             print!("Invalid email. Please enter a valid email: ");
         }
+        email.clear();
     }
 
     print!("Enter the reservation date (YYYY-MM-DD): ");
@@ -64,6 +66,7 @@ fn read_user_input() -> Result<(String, String, String), io::Error> {
         } else {
             print!("Invalid date. Please enter a valid date (YYYY-MM-DD): ");
         }
+        date.clear();
     }
 
     Ok((name.trim().to_string(), email.trim().to_string(), date.trim().to_string()))
