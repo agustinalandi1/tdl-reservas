@@ -44,8 +44,6 @@ impl Sistema {
         let mut next_reservation_id = self.next_reservation_id.lock().unwrap();
         let id = *next_reservation_id;
         let hab = Habitacion::nueva(true, cant_integrantes, id); 
-        println!("La habitacion esta: {}", hab.esta_disponible());
-        println!("La habitacion tiene {} huespedes", hab.cantidad_huespedes());
         reservations.push(Reserva::new(id, client_id, date, cant_integrantes));
         *next_reservation_id += 1;
         id
