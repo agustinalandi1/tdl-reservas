@@ -3,16 +3,16 @@ use std::sync::Arc;
 use reservas::usuario::Usuario;
 use reservas::reserva::Reserva;
 use reservas::sistema::Sistema;
-use reservas::habitacion::{self, Habitacion};
 
 /// Funcion que se encarga de verificar la disponibilidad de una fecha
 async fn check_availability(info: web::Json<Reserva>, sistema: web::Data<Arc<Sistema>>) -> impl Responder {
     let date = &info.date;
+    let integrantes = info.cant_integrantes;
 
-    if sistema.check_availability(date).await{
-        HttpResponse::Ok().body("Date available")
+    if sistema.check_availability(date, integrantes).await{
+        HttpResponse::Ok().body("Date available.")
     } else {
-        HttpResponse::Conflict().body("Date already reserved")
+        HttpResponse::Conflict().body("Date already reserved for that amount of guests.")
     }
 }
 

@@ -1,6 +1,6 @@
 use reqwest::Client as HttpClient;
 use std::io::{self, Write};
-use chrono::{Utc, NaiveDateTime, Datelike};
+use chrono::{Utc, Datelike};
 
 use reservas::usuario::{self, Usuario};
 use reservas::reserva::{self, Reserva};

@@ -47,10 +47,14 @@ impl Sistema {
         id
     }
 
-    /// Verifica si una fecha esta disponible.
-    pub async fn check_availability(&self, date: &String) -> bool {
+    /// Verifica si una fecha está disponible. Está disponible si no hay ninguna reserva para esa fecha, o si la hay
+    /// pero para habitaciones con una cantidad distinta de integrantes.
+    pub async fn check_availability(&self, date: &String, cant_integrantes: u8) -> bool {
         let reservations = self.reservations.lock().unwrap();
-        reservations.iter().all(|reservation| &reservation.date != date)
+        reservations.iter().all(|reservation| {
+            reservation.date != *date || 
+            reservation.cant_integrantes != cant_integrantes
+        })
     }
 
     /// Obtiene una reserva por su id.
