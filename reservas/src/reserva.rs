@@ -10,7 +10,6 @@ pub struct Reserva {
 }
 
 impl Reserva {
-
     /// Crea una nueva reserva.
     pub fn new(id: u32, client_id: u32, date: String, cant_integrantes: u8) -> Reserva {
         Reserva { id, client_id, date, cant_integrantes }

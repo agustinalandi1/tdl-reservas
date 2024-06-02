@@ -10,17 +10,34 @@ use regex::Regex;
 /// Funcion principal que se encarga de realizar la reserva de una habitacion
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
-
     let http_client = HttpClient::new();
-    let (name, email, date, integrantes) = read_user_input()?;
-    let usuario = usuario::Usuario::new(0, name, email);
-    let reservation_check = reserva::Reserva::new(0, 0, date.clone(), integrantes);
 
-    if check_availability(&http_client, &reservation_check).await? {
-        println!("Date is available. Creating reservation...");
-        create_reservation(&http_client, &usuario, &date, &integrantes).await?;
-    } else {
-        println!("Date is already reserved.");
+    loop {
+        let (name, email, date, integrantes) = read_user_input()?;
+        let usuario = usuario::Usuario::new(0, name, email);
+        let reservation_check = reserva::Reserva::new(0, 0, date.clone(), integrantes);
+
+        if check_availability(&http_client, &reservation_check).await? {
+            println!("Date is available. Creating reservation...");
+            create_reservation(&http_client, &usuario, &date, &integrantes).await?;
+        } else {
+            println!("Date is already reserved.");
+        }
+
+        let mut input = String::new();
+        print!("Do you want to make another reservation? (yes or EXIT to quit): ");
+        io::stdout().flush()?;
+        io::stdin().read_line(&mut input)?;
+
+        let input = input.trim().to_lowercase();
+        match input.as_str() {
+            "yes" => continue,
+            "exit" => {
+                let _ = http_client.get("http://127.0.0.1:8080/exit").send().await;
+                break;
+            }
+            _ => println!("Invalid input. Please enter 'yes', 'no' or 'exit'."),
+        }
     }
 
     Ok(())

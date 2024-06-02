@@ -1,11 +1,15 @@
+use std::fs::File;
 use std::sync::Mutex;
 use std::collections::HashMap;
+use std::io::{self, BufReader, BufWriter};
+use csv::{ReaderBuilder, WriterBuilder};
 use crate::usuario::Usuario;
 use crate::reserva::Reserva;
 use crate::habitacion::Habitacion;
 
 /// Representa el sistema de reservas con una lista de reservas, una lista de clientes, el id del siguiente cliente
 ///  y el id de la siguiente reserva.
+#[derive(Debug)]
 pub struct Sistema {
     pub reservations: Mutex<Vec<Reserva>>,
     pub clients: Mutex<HashMap<u32, Usuario>>,
@@ -61,5 +65,35 @@ impl Sistema {
     pub fn get_reservation(&self, id: u32) -> Option<Reserva> {
         let reservations = self.reservations.lock().unwrap();
         reservations.iter().find(|reservation| reservation.id == id).cloned()
+    }
+
+    /// Guarda las reservas en un archivo CSV.
+    pub fn save_reservations_to_csv(&self, filename: &str) -> Result<(), io::Error> {
+        let reservations = self.reservations.lock().unwrap();
+        let file = File::create(filename)?;
+        let writer = BufWriter::new(file);
+        let mut csv_writer = WriterBuilder::new().from_writer(writer);
+
+        for reservation in reservations.iter() {
+            csv_writer.serialize(reservation)?;
+        }
+
+        csv_writer.flush()?;
+        Ok(())
+    }
+
+    /// Carga las reservas desde un archivo CSV.
+    pub fn load_reservations_from_csv(&self, filename: &str) -> Result<(), io::Error> {
+        let file = File::open(filename)?;
+        let reader = BufReader::new(file);
+        let mut csv_reader = ReaderBuilder::new().from_reader(reader);
+
+        for result in csv_reader.deserialize::<(u32, u32, String, u8)>() {
+            let (id, client_id, date, cant_integrantes): (u32, u32, String, u8) = result?;
+            let mut reservations = self.reservations.lock().unwrap();
+            reservations.push(Reserva::new(id, client_id, date, cant_integrantes));
+        }
+
+        Ok(())
     }
 }

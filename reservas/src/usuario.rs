@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Representa un usuario con un id, nombre y email.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Usuario {
     pub id: u32,
     pub name: String,
