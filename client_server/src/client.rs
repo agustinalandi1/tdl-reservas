@@ -1,17 +1,11 @@
 use reqwest::Client as HttpClient;
 use std::io::{self, Write};
-use chrono::{Utc, Datelike};
-
-use reservas::usuario::{self, Usuario};
-use reservas::reserva::{self, Reserva};
-use regex::Regex;
-
+use reservas::{habitacion::Habitacion, usuario::Usuario};
+use reservas::reserva::Reserva;
 extern crate csv;
-
-use std::error::Error;
-//use std::fs::File;
-use csv::Reader;
-use std::fs::{self, File};
+mod input_validator;
+use input_validator::{DateValidator, EmailValidator, PasswordValidator, Validator};
+// Add the missing import for the `validate_email` function
 
 
 /// Funcion principal que se encarga de realizar la reserva de una habitacion
@@ -19,140 +13,199 @@ use std::fs::{self, File};
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let http_client = HttpClient::new();
 
+    match http_client.get("http://127.0.0.1:8080").send().await {
+        Ok(_) => (),
+        Err(_) => {
+            panic!("Server is not running!!");
+        }
+    }
+    start_menu(&http_client).await?;
+
+    Ok(())
+}
+
+async fn start_menu(http_client: &HttpClient) -> Result<(), Box<dyn std::error::Error>> {
+    let mut option = String::new();
     loop {
-        let (name, email, date, integrantes) = read_user_input()?;
-        let usuario = usuario::Usuario::new(0, name, email);
-        let reservation_check = reserva::Reserva::new(0, 0, date.clone(), integrantes);
-
-        if check_availability(&http_client, &reservation_check).await? {
-            println!("Date is available. Creating reservation...");
-            create_reservation(&http_client, &usuario, &date, &integrantes).await?;
-        } else {
-            println!("Date is already reserved.");
-        }
-
-        let mut input = String::new();                                  //VER BIEN COMO QUEREMOS QUE SEA EL DIALOGO CON USER, ESTO PRIMERO.... ETC
-        println!("Do you want to perform any other task? (enter the correct index): ");
-        println!("1. Search for reservation");
-        println!("2. Delete reservation (enter reservation id)");
-        println!("3. Modify reservation (enter reservation id)");
-        println!("4. Make another reservation");
-        println!("5. Terminate session");
+        //print!("{}[2J", 27 as char); // Clear the screen
+        println!("\nWelcome to the reservation system  made to 7531!");
+        println!("1. Create a user");
+        println!("2. Login existing user");
+        println!("3. Exit");
+        println!("Enter an option: ");
         io::stdout().flush()?;
-        io::stdin().read_line(&mut input)?;
+        io::stdin().read_line(&mut option)?;
 
-        let input = input.trim().to_lowercase();
-        match input.as_str() {                              //MODULARIZAR
-            "1" => {
-                println!("Enter reservation id: ");
-                let mut id = String::new();
-                io::stdout().flush()?;
-                io::stdin().read_line(&mut id)?;
-                let id_int = match id.trim().parse::<u8>() {
-                    Ok(value) => value,
-                    Err(_) => {
-                        println!("Invalid input for reservation id");
-                        continue;
+        match option.trim().parse::<i32>() {
+            Ok(value) => {
+                match value {
+                    1 => {
+                        menu_create_user(&http_client).await?;
                     }
-                };
-                search_reservation(id_int);
-            }
-            "2" => {                                //BORRAR EN SERVER?
-                println!("Enter reservation id: ");
-                let mut id = String::new();
-                io::stdout().flush()?;
-                io::stdin().read_line(&mut id)?;
-                let id_int = match id.trim().parse::<u8>() {
-                    Ok(value) => value,
-                    Err(_) => {
-                        println!("Invalid input for reservation id");
-                        continue;
+                    2 => {
+                        let login_output = menu_login_user(&http_client).await;
+                        
+                        match login_output {
+                            Ok(value) => {
+                                let user = value;
+                                logged_menu(&http_client, &user).await?;
+                                //Cuando llegue acá, cerró el user.
+                            },
+                            Err(e) => {
+                                print!("{}", e);
+                                continue // No se devolvio un user correcto, entonces volvemos al menú principal
+                            },
+                        }
                     }
-                };
-                delete_reservation(id_int);
-            }
-            "3" => continue, //TERMINAR DE HACER MODIFY
-            "4" => continue,
-            "5" => {
-                let _ = http_client.get("http://127.0.0.1:8080/exit").send().await;
-                //break;
-            }
-            _ => println!("Invalid input. Please enter a correct number."),
-        }
-        break;  //VER DONDE PONER EL BREAK
-    }
-
-    Ok(())
-}
-
-//Funcion que busca una reserva ya creada
-fn search_reservation(id_input: u8) -> Result<(), Box<dyn Error>> {
-    let file = File::open("reservas.csv")?;
-    let mut rdr = Reader::from_reader(file);
-    let mut found = false;
-
-    for result in rdr.records() {
-        let record = result?;
-        if let Some(id) = record.get(0) {
-            if let Ok(id) = id.parse::<u8>() {
-                if id == id_input {
-                    found = true;
-                    for field in record.iter() {
-                        print!("{}, ", field);      //imprimir parte por parte con su identificacoin
+                    3 => {
+                        break;            
+                    }
+                    _ => {
+                        println!("Invalid option. Please enter a valid option");
                     }
                 }
             }
-        }
+            Err(_) => {
+                println!("Invalid option. Please enter a valid option");
+            }
+        };
+        option.clear();
     }
-    if !found {
-        return Err(Box::new(io::Error::new(io::ErrorKind::NotFound, "No existe ninguna reserva con ese id")));
-    }
-
     Ok(())
 }
 
-// Funcion que elimina reserva pasada por parametro
-fn delete_reservation(id_input: u8) -> Result<(), Box<dyn Error>> {
-    let file = File::open("reservas.csv")?;
-    let mut rdr = Reader::from_reader(file);
-    let mut writer = csv::Writer::from_path("temp.csv")?;
+async fn input_email_password() -> Result<(String, String), Box<dyn std::error::Error>> {
+    let _email_validator = EmailValidator;
+    let _password_validator = PasswordValidator;
+    let mut email = String::new();
+    let mut password = String::new();
 
-    let mut found = false;
+    loop {
+        println!("Enter your email: ");
+        io::stdout().flush()?;
+        io::stdin().read_line(&mut email)?;
 
-    for result in rdr.records() {
-        let record = result?;
-        if let Some(id) = record.get(0) {
-            if let Ok(id) = id.parse::<u8>() {
-                if id == id_input {
-                    found = true;
-                    continue;
-                }
-            }
+        if _email_validator.validate(&email).is_ok() {
+            break;
+        } else {
+            println!("Invalid email. Please enter a valid email");
         }
-        writer.write_record(&record)?;
+        email.clear();
     }
-    drop(writer);
-    drop(rdr);
-    fs::rename("temp.csv", "reservas.csv")?;
 
-    if found {
-        println!("Reservation deleted successfully!");
+    loop {
+        println!("Enter your password: ");
+        io::stdout().flush()?;
+        io::stdin().read_line(&mut password)?;
+
+        if _password_validator.validate(&password).is_ok() {
+            break;
+        } else {
+            println!("Invalid password. Please enter a valid password");
+        }
+        password.clear();
+    }
+
+    let _trimmed_email = email.trim().to_string();
+    let _trimmed_password = password.trim().to_string();
+
+    Ok((_trimmed_email, _trimmed_password))
+}
+async fn menu_create_user(http_client: &HttpClient) -> Result<(), Box<dyn std::error::Error>> {
+    let (email, password) = input_email_password().await?;
+    // hasta acá mail y password envia bien.
+    let result = http_client.post("http://127.0.0.1:8080/create_user").json(&(email, password)).send().await?;
+
+    if result.status().is_success() {
+        Ok(println!("User created successfully"))
     } else {
-        println!("There's no existing reservation with that id");
+        Ok(print!("User already exists"))
     }
-
-    Ok(())
 }
 
 /// Funcion que se encarga de leer el nombre del usuario
-fn read_name() -> Result<String, io::Error> {
-    let mut name = String::new();
-    print!("Enter your name: ");
-    io::stdout().flush()?;
-    io::stdin().read_line(&mut name)?;
-    Ok(name.trim().to_string())
+async fn menu_login_user(http_client: &HttpClient) -> Result<(Usuario), Box<dyn std::error::Error>> {
+    let (email, password) = input_email_password().await?; 
+    // las validaciones de email y password son las mismas que en create_user
+
+    let result: reqwest::Response = http_client.post("http://127.0.0.1:8080/login").json(&(email, password)).send().await?;
+
+    if result.status().is_success() {
+        let user: Usuario = result.json().await?;
+        println!("User logged in successfully");
+        Ok(user)
+    } else {
+        Err(Box::from("User doesn't exist or incorrect password"))
+    }
 }
 
+
+async fn logged_menu(http_client: &HttpClient, user: &Usuario) -> Result<(), Box<dyn std::error::Error>> {
+    let mut option = String::new();
+    println!("\nWelcome {} (id: #{})", user.get_email(), user.get_id());
+    loop {
+        //print!("{}[2J", 27 as char); // Clear the screen
+        println!("1. Create a reservation");
+        println!("2. Check your reservations");
+        println!("3. Check availables rooms");
+        println!("4. Logout current account");
+        println!("Enter an option: ");
+        io::stdout().flush()?;
+        io::stdin().read_line(&mut option)?;
+
+        match option.trim().parse::<i32>() {
+            Ok(value) => {
+                match value {
+                    1 => {
+                        print!("todo")
+                    }
+                    2 => {
+                        let response = http_client.post("http://127.0.0.1:8080/get_reservations").json(&user.get_id()).send().await?;
+                        
+                        let list_of_reservations: Vec<Reserva> = response.json().await?;
+                        
+                        if list_of_reservations.len() > 0 {
+                            println!("{0: <16} | {1: <10} | {2: <10} | {3: <10} | {4: <10}",
+                                "Reservation ID", "Room Number", "Start Date", "End Date", "Guests");
+                            for reserve in list_of_reservations.iter() {
+                                println!("{0: <16} | {1: <11} | {2: <10} | {3: <9} | {4: <11}",
+                                reserve.id, reserve.room_number_id, reserve.date_start, reserve.date_end, reserve.cant_integrantes);
+                            }
+                        }
+                        else {
+                            println!("No reservations found for your id!");
+                        }
+                    }
+                    3 => {
+                        let response = http_client.post("http://127.0.0.1:8080/list_all_rooms").send().await?;
+                        let rooms: Vec<Habitacion> = response.json().await?;
+                        println!(
+                            "{0: <16} | {1: <10}",
+                            "Room Number", "Max number of available guests"
+                        );
+
+                        for room in rooms.iter() {
+                            println!("{0: <16} | {1: <10}", room.id_habitacion(), room.cantidad_huespedes());
+                        }
+                    }
+                    4 => {
+                        break
+                    }
+                    _ => {
+                        println!("Invalid option. Please enter a valid option");
+                    }
+                }
+            }
+            Err(_) => {
+                println!("Invalid option. Please enter a valid option");
+            }
+        };
+        option.clear();
+    }
+    Ok(())
+}
+
+/*
 /// Funcion que se encarga de leer el email del usuario
 fn read_email() -> Result<String, io::Error> {
     let pattern_email = Regex::new(r"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)").unwrap();
@@ -259,3 +312,4 @@ async fn create_reservation(http_client: &HttpClient, usuario: &Usuario, date: &
     println!("{}", res.text().await?);
     Ok(())
 }
+*/

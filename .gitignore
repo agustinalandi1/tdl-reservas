@@ -2,3 +2,4 @@
 /target/*
 /.vs
 /.vs/*
+.rustc_info.json

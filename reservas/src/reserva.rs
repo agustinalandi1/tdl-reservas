@@ -5,13 +5,19 @@ use serde::{Deserialize, Serialize};
 pub struct Reserva {
     pub id: u32,
     pub client_id: u32,
-    pub date: String,
+    pub room_number_id: u32,
+    pub date_start: String,
+    pub date_end: String,
     pub cant_integrantes: u8
 }
 
 impl Reserva {
     /// Crea una nueva reserva.
-    pub fn new(id: u32, client_id: u32, date: String, cant_integrantes: u8) -> Reserva {
-        Reserva { id, client_id, date, cant_integrantes }
+    pub fn new(id: u32, client_id: u32, room_number_id: u32, date_start: String, date_end: String, cant_integrantes: u8) -> Reserva {
+        Reserva { id, client_id, room_number_id, date_start, date_end, cant_integrantes }
+    }
+
+    pub fn get_client_id(&self) -> u32 {
+        self.client_id
     }
 }

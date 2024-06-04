@@ -6,6 +6,7 @@ use reservas::usuario::Usuario;
 use reservas::reserva::Reserva;
 use reservas::sistema::Sistema;
 
+/* 
 /// Funcion que se encarga de verificar la disponibilidad de una fecha
 async fn check_availability(info: web::Json<Reserva>, sistema: web::Data<Arc<Sistema>>) -> impl Responder {
     let date = &info.date;
@@ -16,8 +17,8 @@ async fn check_availability(info: web::Json<Reserva>, sistema: web::Data<Arc<Sis
     } else {
         HttpResponse::Conflict().body("Date already reserved for that amount of guests.")
     }
-}
-
+}*/
+/*
 /// Funcion que se encarga de crear una reserva
 async fn create_reservation(info: web::Json<(Usuario, String, u8)>, sistema: web::Data<Arc<Sistema>>) -> impl Responder {
     let (usuario, date, cantidas_integrantes) = info.into_inner();
@@ -27,6 +28,47 @@ async fn create_reservation(info: web::Json<(Usuario, String, u8)>, sistema: web
     println!("New reservation: {:?}", sistema.get_reservation(reservation_id).unwrap());
 
     HttpResponse::Ok().body(format!("Reservation confirmed with id {}", reservation_id))
+}*/
+
+async fn create_user(info: web::Json<(String, String)>, sistema: web::Data<Arc<Sistema>>) -> impl Responder {
+    let (email, password )= info.into_inner();
+    if sistema.user_already_exists(&email) {
+        return HttpResponse::Conflict().body(format!("User with email {} already exists", email));
+    }
+
+    sistema.add_client(email.clone(), password.clone());
+
+    HttpResponse::Ok().body(format!("User created"))
+}
+
+async fn login_user(info: web::Json<(String, String)>, sistema: web::Data<Arc<Sistema>>) -> impl Responder {
+    let (email, password )= info.into_inner();
+
+    if !sistema.user_already_exists(&email) {
+        return HttpResponse::Conflict().body(format!("User with email {} doesn't exists", email));
+    }
+    
+    let user_object = sistema.user_correct_login(&email, &password);
+    
+    if user_object.is_none() {
+        return HttpResponse::Conflict().body(format!("Incorrect password or user doesn't exists"));
+    }
+    else {
+        // Unwrap user_object to get the Usuario and return it as JSON
+        HttpResponse::Ok().json(user_object.unwrap())
+    }
+}
+
+async fn list_all_rooms(sistema: web::Data<Arc<Sistema>>) -> impl Responder {
+    let rooms = sistema.get_all_rooms();
+    print!("ListAllRooms => {:?}", rooms);
+    HttpResponse::Ok().json(rooms)
+}
+
+async fn get_reservations(info: web::Json<u32>, sistema: web::Data<Arc<Sistema>>) -> impl Responder {
+    let client_id = info.into_inner();
+    let reservations = sistema.get_reservation_by_client_id(client_id);
+    HttpResponse::Ok().json(reservations)
 }
 
 /// Funcion principal que se encarga de iniciar el servidor
@@ -34,7 +76,7 @@ async fn create_reservation(info: web::Json<(Usuario, String, u8)>, sistema: web
 pub async fn main() -> std::io::Result<()> {
     let sistema = Arc::new(Sistema::new());
 
-    if let Err(err) = sistema.load_reservations_from_csv("reservas.csv") {
+    if let Err(err) = sistema.load_vital_data() {
         eprintln!("Error loading reservations: {}", err);
     }
 
@@ -48,8 +90,12 @@ pub async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(sistema_clone.clone()))
             .app_data(web::Data::new(tx.clone()))
-            .route("/check", web::post().to(check_availability))  // Nueva ruta para verificar disponibilidad
-            .route("/reserve", web::post().to(create_reservation)) // Nueva ruta para crear reserva
+            //.route("/check", web::post().to(check_availability))  // Nueva ruta para verificar disponibilidad
+            .route("/create_user", web::post().to(create_user)) // Nueva ruta para crear usuario
+            .route("/login", web::post().to(login_user))
+            .route("/list_all_rooms", web::post().to(list_all_rooms))
+            .route("/get_reservations", web::post().to(get_reservations))
+            //.route("/reserve", web::post().to(create_reservation)) // Nueva ruta para crear reserva
             .route("/exit", web::get().to(stop_server)) // Manejar solicitud especial
     })
     .bind("127.0.0.1:8080")?
