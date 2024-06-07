@@ -14,14 +14,17 @@ impl Usuario {
         Usuario { id, email, password }
     }
     
+    /// Obtiene el id del usuario.
     pub fn get_id(&self) -> u32 {
         self.id
     }
 
+    /// Obtiene el email del usuario.
     pub fn get_email(&self) -> String {
         self.email.clone()
     }
 
+    /// Obtiene el password del usuario.
     pub fn get_password(&self) -> String {
         self.password.clone()
     }

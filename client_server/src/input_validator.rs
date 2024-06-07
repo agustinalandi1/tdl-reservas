@@ -2,34 +2,37 @@ use regex::Regex;
 use chrono::NaiveDate;
 use std::fmt;
 
-// Define a trait for validation
 pub trait Validator<T> {
+    /// Valida el input y devuelve un resultado o el error.
     fn validate(&self, input: &str) -> Result<T, ValidationError>;
 }
 
-// Custom error type for validation
+
 #[derive(Debug)]
+/// Representa el error de validación
 pub struct ValidationError {
     details: String,
 }
 
 impl ValidationError {
+    /// Crea un nuevo error de validación
     fn new(msg: &str) -> ValidationError {
         ValidationError { details: msg.to_string() }
     }
 }
 
+/// Implementación de Display para ValidationError
 impl fmt::Display for ValidationError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.details)
     }
 }
 
-// Validator for email
-
+// Validador para el email
 pub struct EmailValidator;
 
 impl Validator<()> for EmailValidator {
+    /// Valida que el input sea un email válido
     fn validate(&self, input: &str) -> Result<(), ValidationError> {
         let email_regex = Regex::new(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").unwrap();
         if email_regex.is_match(input.trim()) {
@@ -40,7 +43,7 @@ impl Validator<()> for EmailValidator {
     }
 }
 
-// Validator for date
+// Validador para el formato de fecha ingresada
 pub struct DateValidator;
 
 impl Validator<(i32, i32,i32)> for DateValidator {
@@ -58,8 +61,10 @@ impl Validator<(i32, i32,i32)> for DateValidator {
     }
 }
 
+// Validador para la contraseña
 pub struct PasswordValidator;
 
+// Implementación de Validator para PasswordValidator
 impl Validator<()> for PasswordValidator {
     fn validate(&self, input: &str) -> Result<(), ValidationError> {
         let _min_password_len = 5;

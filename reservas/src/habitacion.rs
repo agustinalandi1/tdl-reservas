@@ -21,6 +21,7 @@ impl Habitacion {
         self.cantidad_huespedes
     }
 
+    /// Obtiene el id de la habitación.
     pub fn id_habitacion(&self) -> u32 {
         self.id_habitacion
     }

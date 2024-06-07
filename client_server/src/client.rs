@@ -1,12 +1,92 @@
 use reqwest::Client as HttpClient;
+use serde::{Deserialize, Serialize};
 use std::io::{self, Write};
 use reservas::{habitacion::Habitacion, usuario::Usuario};
 use reservas::reserva::Reserva;
 extern crate csv;
 mod input_validator;
-use input_validator::{DateValidator, EmailValidator, PasswordValidator, Validator};
+use input_validator::{EmailValidator, PasswordValidator, Validator};
 // Add the missing import for the `validate_email` function
 
+#[derive(Serialize)]
+/// Estructura de solicitud para la creación de una reserva
+struct ReservationRequest {
+    client_id: u32,
+    room_number: u32,
+    date_start: String,
+    date_end: String,
+    cant_integrantes: u8,
+}
+
+#[derive(Deserialize)]
+/// Estructura de respuesta para la disponibilidad de una fecha
+struct AvailabilityResponse {
+    available: bool,
+}
+
+/// Funcion que se encarga de verificar la disponibilidad de una habitacion
+async fn check_availability(http_client: &HttpClient, reservation: &Reserva) -> Result<bool, Box<dyn std::error::Error>> {
+    let url = "http://127.0.0.1:8080/check";
+    let request = ReservationRequest {
+        client_id: reservation.client_id,
+        room_number: reservation.room_number_id,
+        date_start: reservation.date_start.clone(),
+        date_end: reservation.date_end.clone(),
+        cant_integrantes: reservation.cant_integrantes,
+    };
+    let response = http_client.post(url).json(&request).send().await?;
+    let availability_response: AvailabilityResponse = response.json().await?;
+    Ok(availability_response.available)
+}
+
+/// Funcion que se encarga de crear una reserva
+async fn create_reservation(http_client: &HttpClient, user: &Usuario, room_number: u32, date_start: String, date_end: String, cant_integrantes: u8) -> Result<u32, Box<dyn std::error::Error>> {
+    let url = "http://127.0.0.1:8080/reserve";
+    let request = ReservationRequest {
+        client_id: user.get_id(),
+        room_number,
+        date_start,
+        date_end,
+        cant_integrantes,
+    };
+    let response = http_client.post(url).json(&request).send().await?;
+    let reservation_id: u32 = response.json().await?;
+    Ok(reservation_id)
+}
+
+/// Funcion que se encarga de crear una reserva
+pub async fn menu_create_reservation(http_client: &HttpClient, user: &Usuario) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Enter room number:");
+    let mut room_number = String::new();
+    io::stdin().read_line(&mut room_number)?;
+    let room_number: u32 = room_number.trim().parse()?;
+
+    println!("Enter start date (YYYY-MM-DD):");
+    let mut date_start = String::new();
+    io::stdin().read_line(&mut date_start)?;
+    let date_start = date_start.trim().to_string();
+
+    println!("Enter end date (YYYY-MM-DD):");
+    let mut date_end = String::new();
+    io::stdin().read_line(&mut date_end)?;
+    let date_end = date_end.trim().to_string();
+
+    println!("Enter number of guests:");
+    let mut cant_integrantes = String::new();
+    io::stdin().read_line(&mut cant_integrantes)?;
+    let cant_integrantes: u8 = cant_integrantes.trim().parse()?;
+
+    let reservation = Reserva::new(0, user.get_id(), room_number, date_start.clone(), date_end.clone(), cant_integrantes);
+
+    if check_availability(http_client, &reservation).await? {
+        let reservation_id = create_reservation(http_client, &user, room_number, date_start, date_end, cant_integrantes).await?;
+        println!("Reservation created successfully with ID: {}", reservation_id);
+    } else {
+        println!("Room is not available for the selected dates and number of guests.");
+    }
+
+    Ok(())
+}
 
 /// Funcion principal que se encarga de realizar la reserva de una habitacion
 #[tokio::main]
@@ -24,6 +104,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Funcion que se encarga de mostrar el menú principal
 async fn start_menu(http_client: &HttpClient) -> Result<(), Box<dyn std::error::Error>> {
     let mut option = String::new();
     loop {
@@ -74,6 +155,7 @@ async fn start_menu(http_client: &HttpClient) -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
+/// Funcion que se encarga de leer el email y password del usuario
 async fn input_email_password() -> Result<(String, String), Box<dyn std::error::Error>> {
     let _email_validator = EmailValidator;
     let _password_validator = PasswordValidator;
@@ -111,6 +193,8 @@ async fn input_email_password() -> Result<(String, String), Box<dyn std::error::
 
     Ok((_trimmed_email, _trimmed_password))
 }
+
+/// Funcion que se encarga de crear un usuario
 async fn menu_create_user(http_client: &HttpClient) -> Result<(), Box<dyn std::error::Error>> {
     let (email, password) = input_email_password().await?;
     // hasta acá mail y password envia bien.
@@ -124,7 +208,7 @@ async fn menu_create_user(http_client: &HttpClient) -> Result<(), Box<dyn std::e
 }
 
 /// Funcion que se encarga de leer el nombre del usuario
-async fn menu_login_user(http_client: &HttpClient) -> Result<(Usuario), Box<dyn std::error::Error>> {
+async fn menu_login_user(http_client: &HttpClient) -> Result<Usuario, Box<dyn std::error::Error>> {
     let (email, password) = input_email_password().await?; 
     // las validaciones de email y password son las mismas que en create_user
 
@@ -139,7 +223,7 @@ async fn menu_login_user(http_client: &HttpClient) -> Result<(Usuario), Box<dyn 
     }
 }
 
-
+/// Funcion que se encarga de mostrar el menú de opciones para un usuario loggeado
 async fn logged_menu(http_client: &HttpClient, user: &Usuario) -> Result<(), Box<dyn std::error::Error>> {
     let mut option = String::new();
     println!("\nWelcome {} (id: #{})", user.get_email(), user.get_id());
@@ -157,7 +241,7 @@ async fn logged_menu(http_client: &HttpClient, user: &Usuario) -> Result<(), Box
             Ok(value) => {
                 match value {
                     1 => {
-                        print!("todo")
+                        menu_create_reservation(&http_client, &user).await?;
                     }
                     2 => {
                         let response = http_client.post("http://127.0.0.1:8080/get_reservations").json(&user.get_id()).send().await?;
@@ -204,112 +288,3 @@ async fn logged_menu(http_client: &HttpClient, user: &Usuario) -> Result<(), Box
     }
     Ok(())
 }
-
-/*
-/// Funcion que se encarga de leer el email del usuario
-fn read_email() -> Result<String, io::Error> {
-    let pattern_email = Regex::new(r"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)").unwrap();
-    let mut email = String::new();
-    print!("Enter your email: ");
-    loop {
-        io::stdout().flush()?;
-        io::stdin().read_line(&mut email)?;
-        
-        if pattern_email.is_match(&email.trim()) {
-            break;
-        } else {
-            print!("Invalid email. Please enter a valid email: ");
-            email.clear();
-        }
-    }
-    Ok(email.trim().to_string())
-}
-
-/// Funcion que se encarga de leer la fecha de la reserva
-fn read_date() -> Result<String, io::Error> {
-    let pattern_dates = Regex::new(r"(\d{4})-(\d{2})\-(\d{2})").unwrap();
-    let mut date = String::new();
-    print!("Enter the reservation date (YYYY-MM-DD): ");
-    loop {
-        io::stdout().flush()?;
-        io::stdin().read_line(&mut date)?;
-        if pattern_dates.is_match(&date) {
-            let fecha_actual = Utc::today().naive_utc();
-            let groups = pattern_dates.captures(&date).unwrap();
-            let year: i32 = groups.get(1).unwrap().as_str().parse().unwrap();
-            let month: u32 = groups.get(2).unwrap().as_str().parse().unwrap();
-            let day: u32 = groups.get(3).unwrap().as_str().parse().unwrap();
-            if year == fecha_actual.year() {
-                if month > fecha_actual.month() && month <=12 && day >= 1 && day <= 30{
-                    break;
-                } else if month == fecha_actual.month() && day >= fecha_actual.day() && day <= 30{
-                    break;
-                } else {
-                    print!("Invalid date for actual year. Please enter a valid date (YYYY-MM-DD): ");
-                    date.clear();
-                }
-            } else if  year == fecha_actual.year() + 1 {
-                if month < fecha_actual.month() && month >= 1 && day <= 30 && day >= 1 {
-                    break;
-                } else if month == fecha_actual.month() && day <= fecha_actual.day() && day >= 1 {
-                    break;
-                } else {
-                    print!("Invalid date for next year. Please enter a valid date (YYYY-MM-DD): ");
-                    date.clear();
-                }
-            } else {
-                print!("Invalid year. Please enter a valid date (YYYY-MM-DD): ");
-                date.clear();
-            }
-        } else {
-            print!("Invalid date format. Please enter a valid date (YYYY-MM-DD): ");
-            date.clear();
-        }
-    }
-    Ok(date.trim().to_string())
-}
-
-/// Funcion que se encarga de leer la cantidad de integrantes
-fn read_cant_integrantes() -> Result<u8, io::Error> {
-    let mut cant = String::new();
-    print!("Enter the amount of guests: ");
-    io::stdout().flush()?;
-    io::stdin().read_line(&mut cant)?;
-    match cant.trim().parse::<u8>() {
-        Ok(cant) => Ok(cant),
-        Err(_) => {
-            eprintln!("Invalid email. Please enter a valid email: ");
-            Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid input"))
-        }
-    }
-}
-
-/// Funcion que se encarga de leer la informacion del usuario
-fn read_user_input() -> Result<(String, String, String, u8), io::Error> {
-    println!("You're making a reservation. You can schedule it for a period of up to one year in advance.");
-    let name = read_name()?;
-    let email = read_email()?;
-    let date = read_date()?;
-    let integrantes = read_cant_integrantes()?;
-    Ok((name, email, date, integrantes))     //no se puede poner integrantes aca, hace falta??
-}
-
-/// Funcion que se encarga de verificar la disponibilidad de la fecha
-async fn check_availability(http_client: &HttpClient, reservation_check: &Reserva) -> Result<bool, reqwest::Error> {
-    let res = http_client.post("http://127.0.0.1:8080/check")
-        .json(reservation_check)
-        .send()
-        .await?;
-    Ok(res.status().is_success())
-}
-
-/// Funcion que se encarga de crear la reserva
-async fn create_reservation(http_client: &HttpClient, usuario: &Usuario, date: &String, integrantes: &u8) -> Result<(), reqwest::Error> {
-    let res = http_client.post("http://127.0.0.1:8080/reserve")
-        .json(&(usuario, date, integrantes))
-        .send()
-        .await?;
-    println!("{}", res.text().await?);
-    Ok(())
-}
-*/

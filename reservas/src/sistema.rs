@@ -64,11 +64,13 @@ impl Sistema {
         sys
     }
 
+    /// Obtiene un cliente por su email.
     pub fn user_already_exists(&self, email: &String) -> bool {
         let clients = self.clients.lock().unwrap();
         clients.values().any(|client| client.email == *email)
     }
 
+    /// Devuelve un usuario con el email y password correctos.
     pub fn user_correct_login(&self, email: &String, password: &String) -> Option<Usuario> {
         let clients = self.clients.lock().unwrap();
         let user = clients.values().find(|client| client.email == *email && client.password == *password).cloned();
@@ -76,42 +78,56 @@ impl Sistema {
         user
     }
 
+    /// Devuelve las habitaciones.
     pub fn get_all_rooms(&self) -> Vec<Habitacion> {
         let rooms = self.rooms.lock().unwrap();
         rooms.clone()
     }
+
     /// Agrega un nuevo cliente al sistema.
     pub fn add_client(&self, email: String, password: String) -> u32 {
         let mut clients = self.clients.lock().unwrap();
         let mut next_client_id = self.next_client_id.lock().unwrap();
         let id: u32 = *next_client_id;
-        let tempUser = Usuario::new(id, email.clone(), password.clone());
-        clients.insert(id, tempUser.clone());
+        let temp_user = Usuario::new(id, email.clone(), password.clone());
+        clients.insert(id, temp_user.clone());
         *next_client_id += 1;
-        self.save_client_to_csv(&tempUser);
+        self.save_client_to_csv(&temp_user);
         id
     }
-/*
+
+    /// Verifica si una habitación está disponible en las fechas dadas.
+    pub fn is_room_available(&self, room_number: u32, date_start: &String, date_end: &String) -> bool {
+        let reservations = self.reservations.lock().unwrap();
+        reservations.iter().all(|reservation| {
+            !(reservation.room_number_id == room_number && 
+              reservation.date_start <= *date_end && 
+              reservation.date_end >= *date_start)
+        })
+    }
+    
     /// Agrega una nueva reserva al sistema.
-    pub fn add_reservation(&self, client_id: u32, date: String, cant_integrantes: u8) -> u32 {
+    pub fn add_reservation(&self, client_id: u32, room_number: u32, date_start: String, date_end: String, cant_integrantes: u8) -> u32 {
         let mut reservations = self.reservations.lock().unwrap();
         let mut next_reservation_id = self.next_reservation_id.lock().unwrap();
         let id = *next_reservation_id;
-        let hab = Habitacion::nueva( id, cant_integrantes); 
-        reservations.push(Reserva::new(id, client_id, date, cant_integrantes));
+        let new_reservation = Reserva::new(id, client_id, room_number, date_start, date_end, cant_integrantes);
+        reservations.push(new_reservation.clone());
         *next_reservation_id += 1;
+        self.save_reservation_to_csv(&reservations);
         id
     }
 
     /// Verifica si una fecha está disponible. Está disponible si no hay ninguna reserva para esa fecha, o si la hay
     /// pero para habitaciones con una cantidad distinta de integrantes.
-    pub async fn check_availability(&self, date: &String, cant_integrantes: u8) -> bool {
+    pub async fn check_availability(&self, room_number: u32, date_start: &String, date_end: &String) -> bool {
         let reservations = self.reservations.lock().unwrap();
         reservations.iter().all(|reservation| {
-            reservation.date != *date || 
-            reservation.cant_integrantes != cant_integrantes
+            !(reservation.room_number_id == room_number && 
+            reservation.date_start <= *date_end && 
+            reservation.date_end >= *date_start)
         })
-    }*/
+    }
 
     /// Obtiene una reserva por su id.
     pub fn get_reservation_by_client_id(&self, client_id: u32) -> Vec<Reserva> {
@@ -137,6 +153,8 @@ impl Sistema {
         csv_writer.flush()?;
         Ok(())
     }
+
+    /// Guarda un cliente en un archivo CSV.
     fn save_client_to_csv(&self, client: &Usuario) {
         let file = OpenOptions::new()
         .write(true)
@@ -147,6 +165,27 @@ impl Sistema {
         writer.write_record(&[client.get_id().to_string(), client.get_email().clone(), client.get_password().clone()]).unwrap();
         writer.flush().unwrap();
     }
+
+    fn save_reservation_to_csv(&self, reservations: &Vec<Reserva>) {
+        let file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open(&self.files_and_headers[1].0)
+        .unwrap();
+        let mut writer = csv::Writer::from_writer(file);
+        for reservation in reservations.iter() {
+            writer.write_record(&[
+                reservation.id.to_string(), 
+                reservation.client_id.to_string(), 
+                reservation.room_number_id.to_string(),
+                reservation.date_start.clone(),
+                reservation.date_end.clone(),
+                reservation.cant_integrantes.to_string()
+            ]).unwrap();
+        }
+        writer.flush().unwrap();
+    }
+
     /// Carga las reservas desde un archivo CSV.
     pub fn load_vital_data(&self) -> Result<(), io::Error> {
         // esto estoy 100% seguro que se puede poner mas lindo.
@@ -185,6 +224,7 @@ impl Sistema {
             let mut vec_rooms: std::sync::MutexGuard<Vec<Habitacion>> = self.rooms.lock().unwrap();
             vec_rooms.push(Habitacion::nueva(room_number, room_guests));
         }
+
         Ok(())
     }
 }
