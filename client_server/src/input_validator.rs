@@ -48,8 +48,8 @@ pub struct DateValidator;
 
 impl Validator<(i32, i32,i32)> for DateValidator {
     fn validate(&self, input: &str) -> Result<(i32, i32, i32), ValidationError> {
-        if NaiveDate::parse_from_str(input, "%Y-%m-%d").is_ok() {
-            let date = NaiveDate::parse_from_str(input, "%Y-%m-%d").unwrap();
+        if NaiveDate::parse_from_str( input.trim(), "%Y-%m-%d").is_ok() {
+            let date = NaiveDate::parse_from_str(input.trim(), "%Y-%m-%d").unwrap();
             let year = date.format("%Y").to_string().parse::<i32>().unwrap();
             let month = date.format("%m").to_string().parse::<i32>().unwrap();
             let day = date.format("%d").to_string().parse::<i32>().unwrap();

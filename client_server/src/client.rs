@@ -1,11 +1,12 @@
 use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
 use std::io::{self, Write};
+use std::iter::Cloned;
 use reservas::{habitacion::Habitacion, usuario::Usuario};
 use reservas::reserva::Reserva;
 extern crate csv;
 mod input_validator;
-use input_validator::{EmailValidator, PasswordValidator, Validator};
+use input_validator::{DateValidator, EmailValidator, PasswordValidator, Validator};
 // Add the missing import for the `validate_email` function
 
 #[derive(Serialize)]
@@ -54,37 +55,92 @@ async fn create_reservation(http_client: &HttpClient, user: &Usuario, room_numbe
     Ok(reservation_id)
 }
 
+pub fn ask_dates_and_number_guest() -> (String, String, u8) {
+    let mut date_start = String::new();
+    let mut date_end = String::new();
+    let mut cant_integrantes = String::new();
+
+    let DateValidator = DateValidator;
+    print!("Enter start date (YYYY-MM-DD): ");
+    loop {
+        io::stdout().flush();
+        io::stdin().read_line(&mut date_start);
+        match DateValidator.validate(&date_start) {
+            Ok(_) => break,
+            Err(e) => println!("{}", e),
+        }
+        date_start.clear();
+    }
+    print!("Enter end date (YYYY-MM-DD): ");
+    loop {
+        io::stdout().flush();
+        io::stdin().read_line(&mut date_end);
+        match DateValidator.validate(&date_end) {
+            Ok(_) => break,
+            Err(e) => println!("{}", e),
+        }
+        date_end.clear();
+    }
+    print!("Enter number of guests: ");
+    loop {
+        io::stdout().flush();
+        io::stdin().read_line(&mut cant_integrantes);
+        match cant_integrantes.trim().parse::<u8>() {
+            Ok(_) => break,
+            Err(_) => println!("Invalid number of guests. Please enter a valid number"),
+        }
+        cant_integrantes.clear();
+    }
+    let ucant_integrantes = cant_integrantes.trim().parse::<u8>().unwrap();
+
+    (date_start.trim().to_owned(), date_end.trim().to_owned(), ucant_integrantes)
+
+}
 /// Funcion que se encarga de crear una reserva
 pub async fn menu_create_reservation(http_client: &HttpClient, user: &Usuario) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Enter room number:");
-    let mut room_number = String::new();
-    io::stdin().read_line(&mut room_number)?;
-    let room_number: u32 = room_number.trim().parse()?;
+    let (date_start, date_end, cant_integrantes) = ask_dates_and_number_guest();
 
-    println!("Enter start date (YYYY-MM-DD):");
-    let mut date_start = String::new();
-    io::stdin().read_line(&mut date_start)?;
-    let date_start = date_start.trim().to_string();
+    let d_start = date_start.clone(); 
+    let d_end = date_end.clone();
 
-    println!("Enter end date (YYYY-MM-DD):");
-    let mut date_end = String::new();
-    io::stdin().read_line(&mut date_end)?;
-    let date_end = date_end.trim().to_string();
+    let request = http_client.post("http://127.0.0.1:8080/check").json(&(date_start, date_end, cant_integrantes)).send().await?;
+    let vec_habitaciones_disponibles: Vec<Habitacion> = request.json().await?;
 
-    println!("Enter number of guests:");
-    let mut cant_integrantes = String::new();
-    io::stdin().read_line(&mut cant_integrantes)?;
-    let cant_integrantes: u8 = cant_integrantes.trim().parse()?;
-
-    let reservation = Reserva::new(0, user.get_id(), room_number, date_start.clone(), date_end.clone(), cant_integrantes);
-
-    if check_availability(http_client, &reservation).await? {
-        let reservation_id = create_reservation(http_client, &user, room_number, date_start, date_end, cant_integrantes).await?;
-        println!("Reservation created successfully with ID: {}", reservation_id);
-    } else {
-        println!("Room is not available for the selected dates and number of guests.");
+    if vec_habitaciones_disponibles.len() <= 0 {
+        println!("No rooms available for the selected dates and number of guests.");
+        return Ok(());
     }
 
+    println!("Available rooms:");
+    println!("{0: <16} | {1: <10}",
+        "Room Number", "Max number of available guests"
+    );
+
+    for room in vec_habitaciones_disponibles.iter() {
+        println!("{0: <16} | {1: <10}", room.id_habitacion(), room.cantidad_huespedes());
+    }
+    println!("Enter room number: ");
+    let mut input_room = String::new();
+    loop {
+        io::stdin().read_line(&mut input_room)?;
+        match input_room.trim().parse::<u32>() {
+            Ok(value) => {
+                if vec_habitaciones_disponibles.iter().any(|room| room.id_habitacion() == value) {
+                    let room_number = value;
+                    // client_id: u32, room_number: u32, date_start: String, date_end: String, cant_integrantes: u8
+                    let request = http_client.post("http://127.0.0.1:8080/reserve").json(&(user.get_id(), room_number, d_start, d_end, cant_integrantes)).send().await?;
+                    let response: u32 = request.json().await?;
+                    println!("Reservation created successfully with id: {}", response.to_string());
+                    break;
+                } else {
+                    println!("Invalid room number. Please enter a valid room number");
+                }
+            },
+            Err(_) => println!("Invalid room number. Please enter a valid room number"),
+        }
+        input_room.clear();
+    }
+    
     Ok(())
 }
 
@@ -252,8 +308,9 @@ async fn logged_menu(http_client: &HttpClient, user: &Usuario) -> Result<(), Box
                             println!("{0: <16} | {1: <10} | {2: <10} | {3: <10} | {4: <10}",
                                 "Reservation ID", "Room Number", "Start Date", "End Date", "Guests");
                             for reserve in list_of_reservations.iter() {
+                                let (id, client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
                                 println!("{0: <16} | {1: <11} | {2: <10} | {3: <9} | {4: <11}",
-                                reserve.id, reserve.room_number_id, reserve.date_start, reserve.date_end, reserve.cant_integrantes);
+                                id, client_id, room_number_id, date_start, date_end);
                             }
                         }
                         else {

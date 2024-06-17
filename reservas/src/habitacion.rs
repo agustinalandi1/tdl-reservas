@@ -25,4 +25,8 @@ impl Habitacion {
     pub fn id_habitacion(&self) -> u32 {
         self.id_habitacion
     }
+
+    pub fn can_handle_all_guest(&self, guests: u8) -> bool {
+        self.cantidad_huespedes >= guests
+    }
 }

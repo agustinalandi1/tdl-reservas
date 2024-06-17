@@ -5,7 +5,7 @@ use std::io::{self, BufReader, BufWriter};
 use std::vec;
 use csv::{ReaderBuilder, WriterBuilder};
 use crate::usuario::Usuario;
-use crate::reserva::Reserva;
+use crate::reserva::{self, Reserva};
 use crate::habitacion::Habitacion;
 use std::path::Path;
 
@@ -96,6 +96,31 @@ impl Sistema {
         id
     }
 
+    pub fn get_available_rooms(&self, date_start: &String, date_end: &String, cant_integrantes: u8) -> Vec<Habitacion> {
+        let all_available_rooms = self.rooms.lock().unwrap();
+        let reservations = self.reservations.lock().unwrap();
+
+        // De las reservas, se obtienen las habitaciones que no están disponibles en las fechas dadas.
+        let unavailable_rooms_ids: Vec<u32> = reservations.iter()
+            .filter(|reservation| reservation.intersection_between_dates(date_start, date_end))
+            .map(|reservation| reservation.room_number_id)
+            .collect();
+
+        // De todas las habitaciones, filtramos la que no están disponibles
+        all_available_rooms.iter()
+            .filter(|room| !unavailable_rooms_ids.contains(&room.id_habitacion()))
+            .filter(|room| room.can_handle_all_guest(cant_integrantes))
+            .cloned()
+            .collect()
+    }
+
+    pub fn is_room_available_given_date(&self, start: &String, end :&String) -> bool {
+        let reservations = self.reservations.lock().unwrap();
+        reservations.iter().all(|reservation| {
+            !(reservation.date_start <= *end && 
+              reservation.date_end >= *start)
+        })
+    }
     /// Verifica si una habitación está disponible en las fechas dadas.
     pub fn is_room_available(&self, room_number: u32, date_start: &String, date_end: &String) -> bool {
         let reservations = self.reservations.lock().unwrap();
@@ -114,7 +139,7 @@ impl Sistema {
         let new_reservation = Reserva::new(id, client_id, room_number, date_start, date_end, cant_integrantes);
         reservations.push(new_reservation.clone());
         *next_reservation_id += 1;
-        self.save_reservation_to_csv(&reservations);
+        self.save_reservation_to_csv(new_reservation);
         id
     }
 
@@ -166,23 +191,15 @@ impl Sistema {
         writer.flush().unwrap();
     }
 
-    fn save_reservation_to_csv(&self, reservations: &Vec<Reserva>) {
+    fn save_reservation_to_csv(&self, reservation: Reserva) {
         let file = OpenOptions::new()
         .write(true)
         .append(true)
         .open(&self.files_and_headers[1].0)
         .unwrap();
         let mut writer = csv::Writer::from_writer(file);
-        for reservation in reservations.iter() {
-            writer.write_record(&[
-                reservation.id.to_string(), 
-                reservation.client_id.to_string(), 
-                reservation.room_number_id.to_string(),
-                reservation.date_start.clone(),
-                reservation.date_end.clone(),
-                reservation.cant_integrantes.to_string()
-            ]).unwrap();
-        }
+        let (id, client_id, room_number, date_start, date_end, number_guest) = reservation.get_reserve_data();
+        writer.write_record(&[id.to_string(), client_id.to_string(), room_number.to_string(), date_start, date_end, number_guest.to_string()]).unwrap();
         writer.flush().unwrap();
     }
 

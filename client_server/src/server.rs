@@ -66,26 +66,34 @@ async fn get_reservations(info: web::Json<u32>, sistema: web::Data<Arc<Sistema>>
     HttpResponse::Ok().json(reservations)
 }
 
-/// Funcion que se encarga de verificar la disponibilidad de una fecha
-async fn check_availability(info: web::Json<ReservationRequest>, sistema: web::Data<Arc<Sistema>>) -> impl Responder {
+/// Funcion que se encarga de verificar la lista de habitaciones disponibles
+async fn check_availability(info: web::Json<(String, String, u8)>, sistema: web::Data<Arc<Sistema>>) -> impl Responder {
+    let data = info.into_inner();
+    let date_start = data.0;
+    let date_end = data.1;
+    let cant_integrantes = data.2;
+
+    print!("CheckAvailability => {:?} {:?} {:?}", date_start, date_end, cant_integrantes);
+    let available = sistema.get_available_rooms(&date_start, &date_end, cant_integrantes);
+    HttpResponse::Ok().json(available)
+    /*
     let available = sistema.is_room_available(info.room_number, &info.date_start, &info.date_end);
-    HttpResponse::Ok().json(AvailabilityResponse { available })
+    HttpResponse::Ok().json(AvailabilityResponse { available })*/
 }
 
 /// Funcion que se encarga de crear una reserva
-async fn create_reservation(info: web::Json<ReservationRequest>, sistema: web::Data<Arc<Sistema>>) -> impl Responder {
-    if sistema.is_room_available(info.room_number, &info.date_start, &info.date_end) {
-        let reservation_id = sistema.add_reservation(
-            info.client_id,
-            info.room_number,
-            info.date_start.clone(),
-            info.date_end.clone(),
-            info.cant_integrantes,
-        );
-        HttpResponse::Ok().json(reservation_id)
-    } else {
-        HttpResponse::Conflict().body("Room is not available")
-    }
+async fn create_reservation(info: web::Json<(u32, u32, String, String, u8)>, sistema: web::Data<Arc<Sistema>>) -> impl Responder {
+    let info = info.into_inner();
+    // add_reservation(&self, client_id: u32, room_number: u32, date_start: String, date_end: String, cant_integrantes: u8) -> u32 {
+    let user_id = info.0;
+    let room_id = info.1;
+    let date_start = info.2;
+    let date_end = info.3;
+    let cant_integrantes = info.4;
+
+    let reservation_id = sistema.add_reservation(user_id, room_id, date_start, date_end, cant_integrantes);
+
+    HttpResponse::Ok().json(reservation_id)
 }
 
 /// Funcion principal que se encarga de iniciar el servidor
