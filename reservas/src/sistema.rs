@@ -1,13 +1,15 @@
 use std::fs::{File, OpenOptions};
 use std::sync::Mutex;
 use std::collections::HashMap;
-use std::io::{self, BufReader, BufWriter};
+//use std::io::{self, BufReader, BufWriter};
+use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::vec;
 use csv::{ReaderBuilder, WriterBuilder};
 use crate::usuario::Usuario;
 use crate::reserva::{self, Reserva};
 use crate::habitacion::Habitacion;
 use std::path::Path;
+use std::fs;
 
 /// Representa el sistema de reservas con una lista de reservas, una lista de clientes, el id del siguiente cliente
 ///  y el id de la siguiente reserva.
@@ -143,6 +145,23 @@ impl Sistema {
         id
     }
 
+    /// Elimina una reserva del sistema.
+    pub fn delete_reservation(&self, client_id: u32, id_to_delete: u32) -> u32 {
+        let mut reservations = self.reservations.lock().unwrap();
+        let mut next_reservation_id = self.next_reservation_id.lock().unwrap();
+        if let Some(index) = reservations.iter().position(|reserva| {
+            let (id, _client_id, _room_number_id, _date_start, _date_end, _cant_integrantes) = reserva.get_reserve_data();
+            id == id_to_delete
+        }) {
+            let deleted_reservation = reservations.remove(index);
+            *next_reservation_id -= 1;
+            println!("{}", *next_reservation_id);
+            self.delete_reservation_to_csv(deleted_reservation);
+        }
+        let id = *next_reservation_id;
+        id
+    }
+
     /// Verifica si una fecha está disponible. Está disponible si no hay ninguna reserva para esa fecha, o si la hay
     /// pero para habitaciones con una cantidad distinta de integrantes.
     pub async fn check_availability(&self, room_number: u32, date_start: &String, date_end: &String) -> bool {
@@ -191,6 +210,7 @@ impl Sistema {
         writer.flush().unwrap();
     }
 
+    //Guarda las reservas en el archivo csv
     fn save_reservation_to_csv(&self, reservation: Reserva) {
         let file = OpenOptions::new()
         .write(true)
@@ -201,6 +221,39 @@ impl Sistema {
         let (id, client_id, room_number, date_start, date_end, number_guest) = reservation.get_reserve_data();
         writer.write_record(&[id.to_string(), client_id.to_string(), room_number.to_string(), date_start, date_end, number_guest.to_string()]).unwrap();
         writer.flush().unwrap();
+    }
+
+    //Elimina reserva del archivo csv
+    fn delete_reservation_to_csv(&self, reservation: Reserva) {
+        let file_path = &self.files_and_headers[1].0;
+        let temp_file_path = "temp.csv";
+        let file = File::open(file_path).unwrap();
+        let reader = BufReader::new(file);
+        let temp_file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(temp_file_path)
+            .unwrap();
+        let mut writer = csv::Writer::from_writer(temp_file);
+        for line in reader.lines() {
+            let line = line.unwrap();
+            let record: Vec<&str> = line.split(',').collect();
+            let (id, client_id, _room_number, _date_start, _date_end, _number_guest) = (
+                record[0].parse::<u32>().unwrap(),
+                record[1].parse::<u32>().unwrap(),
+                record[2],
+                record[3],
+                record[4],
+                record[5]
+            );
+
+            if id != reservation.id || client_id != reservation.client_id {
+                writer.write_record(&record).unwrap();
+            }
+        }
+        writer.flush().unwrap();
+        fs::rename(temp_file_path, file_path).unwrap();
     }
 
     /// Carga las reservas desde un archivo CSV.

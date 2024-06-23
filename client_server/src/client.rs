@@ -144,6 +144,62 @@ pub async fn menu_create_reservation(http_client: &HttpClient, user: &Usuario) -
     Ok(())
 }
 
+/// Funcion que se encarga de eliminar una reserva
+pub async fn delete_reservation(http_client: &HttpClient, user: &Usuario) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Enter reservation ID: ");
+    let mut input_id = String::new();
+    let mut encontrado = false;
+        io::stdin().read_line(&mut input_id)?;
+        match input_id.trim().parse::<u32>() {
+            Ok(value) => {
+                let response = http_client.post("http://127.0.0.1:8080/get_reservations").json(&user.get_id()).send().await?;
+                let list_of_reservations: Vec<Reserva> = response.json().await?;
+                if list_of_reservations.len() > 0 {
+                    for reserve in list_of_reservations.iter() {
+                        let (id, client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
+                        if id == value {
+                            let request = http_client.post("http://127.0.0.1:8080/delete_reservation")
+                            .json(&(client_id, id))
+                            .send()
+                            .await;
+                        //VER PORQUE NO FUNCIONA EL REQUEST, DEVUELVE STATUS CODE 404 NOT FOUND
+                        match request {
+                            Ok(response) => {
+                                println!("RESPONDIENDOO");
+                                if response.status().is_success() {
+                                    let response_text = response.text().await?;
+                                    println!("Response body: {}", response_text);
+                                    let response: u32 = response_text.parse().unwrap(); // O parsea a JSON si corresponde
+                                    println!("Reservation deleted successfully with id: {}", response);
+                                } else {
+                                    println!("Failed to delete reservation. Status code: {}", response.status());
+                                    let response_text = response.text().await?;
+                                    println!("Response body: {}", response_text);
+                                }
+                            },
+                            Err(e) => {
+                                println!("Error sending request: {}", e);
+                            }
+                        }
+                            encontrado = true;
+                            break;
+                        }
+                    }
+                }
+                else {
+                    println!("No reservations found for your id!");
+                }
+                if encontrado == false {
+                    println!("There's not an existent reservation with ID: {}", value);
+                }
+            },
+            Err(_) => println!("Invalid ID number. Please enter a valid number"),
+        }
+        input_id.clear();
+    
+    Ok(())
+}
+
 /// Funcion principal que se encarga de realizar la reserva de una habitacion
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -287,8 +343,9 @@ async fn logged_menu(http_client: &HttpClient, user: &Usuario) -> Result<(), Box
         //print!("{}[2J", 27 as char); // Clear the screen
         println!("1. Create a reservation");
         println!("2. Check your reservations");
-        println!("3. Check availables rooms");
-        println!("4. Logout current account");
+        println!("3. Delete a reservation");
+        println!("4. Check availables rooms");
+        println!("5. Logout current account");
         println!("Enter an option: ");
         io::stdout().flush()?;
         io::stdin().read_line(&mut option)?;
@@ -318,6 +375,25 @@ async fn logged_menu(http_client: &HttpClient, user: &Usuario) -> Result<(), Box
                         }
                     }
                     3 => {
+                        let response = http_client.post("http://127.0.0.1:8080/get_reservations").json(&user.get_id()).send().await?;
+                        
+                        let list_of_reservations: Vec<Reserva> = response.json().await?;
+                        
+                        if list_of_reservations.len() > 0 {
+                            println!("{0: <16} | {1: <10} | {2: <10} | {3: <10} | {4: <10}",
+                                "Reservation ID", "Room Number", "Start Date", "End Date", "Guests");
+                            for reserve in list_of_reservations.iter() {
+                                let (id, client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
+                                println!("{0: <16} | {1: <11} | {2: <10} | {3: <9} | {4: <11}",
+                                id, client_id, room_number_id, date_start, date_end);
+                            }
+                        }
+                        else {
+                            println!("No reservations found for your id!");
+                        }
+                        delete_reservation(&http_client, &user).await?;
+                    }
+                    4 => {
                         let response = http_client.post("http://127.0.0.1:8080/list_all_rooms").send().await?;
                         let rooms: Vec<Habitacion> = response.json().await?;
                         println!(
@@ -329,7 +405,7 @@ async fn logged_menu(http_client: &HttpClient, user: &Usuario) -> Result<(), Box
                             println!("{0: <16} | {1: <10}", room.id_habitacion(), room.cantidad_huespedes());
                         }
                     }
-                    4 => {
+                    5 => {
                         break
                     }
                     _ => {
