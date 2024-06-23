@@ -97,13 +97,9 @@ async fn create_reservation(info: web::Json<(u32, u32, String, String, u8)>, sis
 }
 
 /// Funcion que se encarga de eliminar una reserva
-async fn delete_reservation(info: web::Json<(u32, u32)>, sistema: web::Data<Arc<Sistema>>) -> impl Responder {
-    let info = info.into_inner();
-    let user_id = info.0;
-    let id_to_delete = info.1;
-
-    let reservation_id_deleted = sistema.delete_reservation(user_id, id_to_delete);
-
+async fn delete_reservation(info: web::Json<u32>, sistema: web::Data<Arc<Sistema>>) -> impl Responder {
+    let id_to_delete = info.into_inner();
+    let reservation_id_deleted = sistema.delete_reservation(id_to_delete);
     HttpResponse::Ok().json(reservation_id_deleted)
 }
 

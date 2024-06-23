@@ -146,20 +146,19 @@ impl Sistema {
     }
 
     /// Elimina una reserva del sistema.
-    pub fn delete_reservation(&self, client_id: u32, id_to_delete: u32) -> u32 {
+    pub fn delete_reservation(&self, id_to_delete: u32) -> u32 {
         let mut reservations = self.reservations.lock().unwrap();
         let mut next_reservation_id = self.next_reservation_id.lock().unwrap();
+        println!("{}", *next_reservation_id);
         if let Some(index) = reservations.iter().position(|reserva| {
             let (id, _client_id, _room_number_id, _date_start, _date_end, _cant_integrantes) = reserva.get_reserve_data();
-            id == id_to_delete
+            id == id_to_delete 
         }) {
             let deleted_reservation = reservations.remove(index);
             *next_reservation_id -= 1;
-            println!("{}", *next_reservation_id);
             self.delete_reservation_to_csv(deleted_reservation);
         }
-        let id = *next_reservation_id;
-        id
+        id_to_delete
     }
 
     /// Verifica si una fecha está disponible. Está disponible si no hay ninguna reserva para esa fecha, o si la hay
@@ -240,15 +239,14 @@ impl Sistema {
             let line = line.unwrap();
             let record: Vec<&str> = line.split(',').collect();
             let (id, client_id, _room_number, _date_start, _date_end, _number_guest) = (
-                record[0].parse::<u32>().unwrap(),
-                record[1].parse::<u32>().unwrap(),
+                record[0],
+                record[1],
                 record[2],
                 record[3],
                 record[4],
                 record[5]
             );
-
-            if id != reservation.id || client_id != reservation.client_id {
+            if id != reservation.id.to_string() || client_id != reservation.client_id.to_string() {
                 writer.write_record(&record).unwrap();
             }
         }
