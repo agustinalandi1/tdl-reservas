@@ -149,7 +149,6 @@ impl Sistema {
     pub fn delete_reservation(&self, id_to_delete: u32) -> u32 {
         let mut reservations = self.reservations.lock().unwrap();
         let mut next_reservation_id = self.next_reservation_id.lock().unwrap();
-        println!("{}", *next_reservation_id);
         if let Some(index) = reservations.iter().position(|reserva| {
             let (id, _client_id, _room_number_id, _date_start, _date_end, _cant_integrantes) = reserva.get_reserve_data();
             id == id_to_delete 
@@ -159,6 +158,21 @@ impl Sistema {
             self.delete_reservation_to_csv(deleted_reservation);
         }
         id_to_delete
+    }
+
+    /// Modiifica una reserva del sistema.
+    pub fn modify_reservation(&self, nueva_cant_integrantes: u8, id_reserva: u32) -> u32 {
+        let mut reservations = self.reservations.lock().unwrap();
+        if let Some(index) = reservations.iter().position(|reserva| {
+            let (id, _client_id, _room_number_id, _date_start, _date_end, _cant_integrantes) = reserva.get_reserve_data();
+            id == id_reserva
+        }) {
+            if let Some(vieja_reserva) = reservations.get_mut(index) {
+                vieja_reserva.cant_integrantes = nueva_cant_integrantes;    
+                self.modify_reservation_to_csv();
+            }
+        }
+        id_reserva
     }
 
     /// Verifica si una fecha está disponible. Está disponible si no hay ninguna reserva para esa fecha, o si la hay
@@ -249,6 +263,28 @@ impl Sistema {
             if id != reservation.id.to_string() || client_id != reservation.client_id.to_string() {
                 writer.write_record(&record).unwrap();
             }
+        }
+        writer.flush().unwrap();
+        fs::rename(temp_file_path, file_path).unwrap();
+    }
+
+    //Modifica reserva del archivo csv
+    fn modify_reservation_to_csv(&self) {
+        let file_path = &self.files_and_headers[1].0;
+        let temp_file_path = "temp.csv";
+        let file = File::open(file_path).unwrap();
+        let reader = BufReader::new(file);
+        let temp_file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(temp_file_path)
+            .unwrap();
+        let mut writer = csv::Writer::from_writer(temp_file);
+        for line in reader.lines() {
+            let line = line.unwrap();
+            let record: Vec<&str> = line.split(',').collect();
+            writer.write_record(&record).unwrap();
         }
         writer.flush().unwrap();
         fs::rename(temp_file_path, file_path).unwrap();

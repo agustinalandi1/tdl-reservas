@@ -103,6 +103,15 @@ async fn delete_reservation(info: web::Json<u32>, sistema: web::Data<Arc<Sistema
     HttpResponse::Ok().json(reservation_id_deleted)
 }
 
+/// Funcion que se encarga de modificar una reserva
+async fn modify_reservation(info: web::Json<(u8, u32)>, sistema: web::Data<Arc<Sistema>>) -> impl Responder {
+    let data = info.into_inner();
+    let cant_integrantes = data.0;
+    let id = data.1;
+    let reservation_id = sistema.modify_reservation( cant_integrantes, id);
+    HttpResponse::Ok().json(reservation_id)
+}
+
 /// Funcion principal que se encarga de iniciar el servidor
 #[actix_web::main]
 pub async fn main() -> std::io::Result<()> {
@@ -127,6 +136,7 @@ pub async fn main() -> std::io::Result<()> {
             .route("/list_all_rooms", web::post().to(list_all_rooms))
             .route("/get_reservations", web::post().to(get_reservations))
             .route("/delete_reservation", web::post().to(delete_reservation))
+            .route("/modify_reservation", web::post().to(modify_reservation))
             .route("/check", web::post().to(check_availability)) // Nueva ruta para verificar disponibilidad
             .route("/reserve", web::post().to(create_reservation)) // Nueva ruta para crear reserva
             .route("/exit", web::get().to(stop_server)) // Manejar solicitud especial

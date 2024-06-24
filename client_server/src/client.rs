@@ -146,15 +146,14 @@ pub async fn menu_create_reservation(http_client: &HttpClient, user: &Usuario) -
 
 /// Funcion que se encarga de eliminar una reserva
 pub async fn delete_reservation(http_client: &HttpClient, user: &Usuario) -> Result<(), Box<dyn std::error::Error>> {
-    let response = http_client.post("http://127.0.0.1:8080/get_reservations").json(&user.get_id()).send().await?;
-    let list_of_reservations: Vec<Reserva> = response.json().await?;
-    if list_of_reservations.len() > 0 {
-        println!("Enter reservation ID: ");
+        println!("Enter reservation ID (in case you don't want to delete any reservation, enter an incorrect ID): ");
         let mut input_id = String::new();
         let mut encontrado = false;
             io::stdin().read_line(&mut input_id)?;
             match input_id.trim().parse::<u32>() {
                 Ok(value) => {
+                    let response = http_client.post("http://127.0.0.1:8080/get_reservations").json(&user.get_id()).send().await?;
+                    let list_of_reservations: Vec<Reserva> = response.json().await?;
                     for reserve in list_of_reservations.iter() {
                         let (id, client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
                         if id == value {
@@ -171,9 +170,116 @@ pub async fn delete_reservation(http_client: &HttpClient, user: &Usuario) -> Res
                 },
                 Err(_) => println!("Invalid ID number. Please enter a valid number"),
             }
-    } else {
-        println!("No reservations found for your id!");
-    }
+    Ok(())
+}
+
+/// Funcion que se encarga de modificar una reserva
+pub async fn modify_reservation(http_client: &HttpClient, user: &Usuario) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Enter reservation ID: ");
+    let mut input_id = String::new();
+    let mut encontrado = false;
+        io::stdin().read_line(&mut input_id)?;
+        match input_id.trim().parse::<u32>() {
+            Ok(value) => {
+                let response = http_client.post("http://127.0.0.1:8080/get_reservations").json(&user.get_id()).send().await?;
+                let list_of_reservations: Vec<Reserva> = response.json().await?;
+                for reserve in list_of_reservations.iter() {
+                    let (id, client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
+                    let d_start = date_start.clone(); 
+                    let d_end = date_end.clone();
+                    if id == value {
+                        let mut option = String::new();
+                        println!("What do you want to modify?");
+                        println!("1. Number of guests");
+                        println!("2. Start date");
+                        println!("3. End date");
+                        println!("Enter an option: ");
+                        io::stdout().flush()?;
+                        io::stdin().read_line(&mut option)?;
+
+                        match option.trim().parse::<i32>() {
+                            Ok(value) => {
+                                match value {
+                                    1 => {
+                                        println!("Enter new number of guests: ");
+                                        let mut new_guests_str = String::new();
+                                        io::stdin().read_line(&mut new_guests_str)?;
+                                        match new_guests_str.trim().parse::<u8>() {
+                                            Ok(new_guests) => {
+                                                let response = http_client.post("http://127.0.0.1:8080/list_all_rooms").send().await?;
+                                                let rooms: Vec<Habitacion> = response.json().await?;
+                                                if rooms.iter().any(|hab| hab.id_habitacion() == room_number_id && hab.cantidad_huespedes() >= new_guests) {
+                                                    let response = http_client.post("http://127.0.0.1:8080/modify_reservation").json(&(d_start, d_end, new_guests, id)).send().await?;
+                                                    let resultado: u32 = response.json().await?;
+                                                    println!("Number of guests modified successfully for reservation {}", resultado.to_string());
+                                                    encontrado = true;
+                                                    break;
+                                                } else {
+                                                    println!("The room doesn't have the capacity for that amount of guests. Please delete this reservation and create a new one.");
+                                                    break;
+                                                }
+                                            },
+                                            Err(_) => println!("Invalid number. Please enter a valid number"),
+                                        }
+                                        
+                                    }
+                                    2 => {
+                                        println!("Enter new start date (YYYY-MM-DD): ");
+                                        let mut new_enter_date = String::new();
+                                        io::stdin().read_line(&mut new_enter_date)?;
+                                        let new_enter_date = new_enter_date.trim().to_owned(); 
+                                        let new_d_start = new_enter_date.clone();  
+                                        let response = http_client.post("http://127.0.0.1:8080/delete_reservation").json(&id).send().await?;
+                                        let request = http_client.post("http://127.0.0.1:8080/check").json(&(new_enter_date, date_end, _cant_integrantes)).send().await?;
+                                        let vec_habitaciones_disponibles: Vec<Habitacion> = request.json().await?;
+                                        if vec_habitaciones_disponibles.iter().any(|hab| hab.id_habitacion() == room_number_id) {
+                                            let request = http_client.post("http://127.0.0.1:8080/reserve").json(&(user.get_id(), room_number_id, new_d_start, d_end, _cant_integrantes)).send().await?;
+                                            let response: u32 = request.json().await?;
+                                            println!("Start date modified successfully for reservation {}", response.to_string());
+                                            encontrado = true;
+                                            break;
+                                        } else {
+                                            let request = http_client.post("http://127.0.0.1:8080/reserve").json(&(user.get_id(), room_number_id, d_start, d_end, _cant_integrantes)).send().await?;
+                                            println!("The room is not available for that date. Please delete this reservation and create a new one.");
+                                            break;
+                                        }
+                                    }
+                                    3 => {
+                                        println!("Enter new end date (YYYY-MM-DD): ");
+                                        let mut new_end_date = String::new();
+                                        io::stdin().read_line(&mut new_end_date)?;
+                                        let new_end_date = new_end_date.trim().to_owned(); 
+                                        let new_d_end = new_end_date.clone();  
+                                        let response = http_client.post("http://127.0.0.1:8080/delete_reservation").json(&id).send().await?;
+                                        let request = http_client.post("http://127.0.0.1:8080/check").json(&(date_start, new_end_date, _cant_integrantes)).send().await?;
+                                        let vec_habitaciones_disponibles: Vec<Habitacion> = request.json().await?;
+                                        if vec_habitaciones_disponibles.iter().any(|hab| hab.id_habitacion() == room_number_id) {
+                                            let request = http_client.post("http://127.0.0.1:8080/reserve").json(&(user.get_id(), room_number_id, d_start, new_d_end, _cant_integrantes)).send().await?;
+                                            let response: u32 = request.json().await?;
+                                            println!("End date modified successfully for reservation {}", response.to_string());
+                                            encontrado = true;
+                                            break;
+                                        } else {
+                                            let request = http_client.post("http://127.0.0.1:8080/reserve").json(&(user.get_id(), room_number_id, d_start, d_end, _cant_integrantes)).send().await?;
+                                            println!("The room is not available for that date. Please delete this reservation and create a new one.");
+                                            break;
+                                        }
+                                    }
+                                    _ => {
+                                        println!("Invalid option. Please enter a valid option");
+                                    }
+                                }                        
+                            },
+                            Err(_) => println!("Invalid option. Please enter a valid option"),
+                        }
+                    }
+                }
+                if encontrado == false {
+                    println!("There's not an existent reservation with ID: {}", value);
+                }
+            },
+            Err(_) => println!("Invalid ID number. Please enter a valid number"),
+        }
     Ok(())
 }
 
@@ -321,8 +427,9 @@ async fn logged_menu(http_client: &HttpClient, user: &Usuario) -> Result<(), Box
         println!("1. Create a reservation");
         println!("2. Check your reservations");
         println!("3. Delete a reservation");
-        println!("4. Check availables rooms");
-        println!("5. Logout current account");
+        println!("4. Modify a reservation");
+        println!("5. Check availables rooms");
+        println!("6. Logout current account");
         println!("Enter an option: ");
         io::stdout().flush()?;
         io::stdin().read_line(&mut option)?;
@@ -344,7 +451,7 @@ async fn logged_menu(http_client: &HttpClient, user: &Usuario) -> Result<(), Box
                             for reserve in list_of_reservations.iter() {
                                 let (id, client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
                                 println!("{0: <16} | {1: <11} | {2: <10} | {3: <9} | {4: <11}",
-                                id, client_id, room_number_id, date_start, date_end);
+                                id, room_number_id, date_start, date_end, _cant_integrantes);
                             }
                         }
                         else {
@@ -362,7 +469,7 @@ async fn logged_menu(http_client: &HttpClient, user: &Usuario) -> Result<(), Box
                             for reserve in list_of_reservations.iter() {
                                 let (id, client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
                                 println!("{0: <16} | {1: <11} | {2: <10} | {3: <9} | {4: <11}",
-                                id, client_id, room_number_id, date_start, date_end);
+                                id, room_number_id, date_start, date_end, _cant_integrantes);
                             }
                             delete_reservation(&http_client, &user).await?;
                         }
@@ -372,6 +479,26 @@ async fn logged_menu(http_client: &HttpClient, user: &Usuario) -> Result<(), Box
                         
                     }
                     4 => {
+                        let response = http_client.post("http://127.0.0.1:8080/get_reservations").json(&user.get_id()).send().await?;
+                        
+                        let list_of_reservations: Vec<Reserva> = response.json().await?;
+                        
+                        if list_of_reservations.len() > 0 {
+                            println!("{0: <16} | {1: <10} | {2: <10} | {3: <10} | {4: <10}",
+                                "Reservation ID", "Room Number", "Start Date", "End Date", "Guests");
+                            for reserve in list_of_reservations.iter() {
+                                let (id, client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
+                                println!("{0: <16} | {1: <11} | {2: <10} | {3: <9} | {4: <11}",
+                                id, room_number_id, date_start, date_end, _cant_integrantes);
+                            }
+                            modify_reservation(&http_client, &user).await?;
+                        }
+                        else {
+                            println!("No reservations found for your id!");
+                        }
+                        
+                    }
+                    5 => {
                         let response = http_client.post("http://127.0.0.1:8080/list_all_rooms").send().await?;
                         let rooms: Vec<Habitacion> = response.json().await?;
                         println!(
@@ -383,7 +510,7 @@ async fn logged_menu(http_client: &HttpClient, user: &Usuario) -> Result<(), Box
                             println!("{0: <16} | {1: <10}", room.id_habitacion(), room.cantidad_huespedes());
                         }
                     }
-                    5 => {
+                    6 => {
                         break
                     }
                     _ => {
