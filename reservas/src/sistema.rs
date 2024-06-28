@@ -1,12 +1,11 @@
 use std::fs::{File, OpenOptions};
 use std::sync::Mutex;
 use std::collections::HashMap;
-//use std::io::{self, BufReader, BufWriter};
-use std::io::{self, BufRead, BufReader, BufWriter, Write};
+use std::io::{self, BufRead, BufReader, BufWriter};
 use std::vec;
 use csv::{ReaderBuilder, WriterBuilder};
 use crate::usuario::Usuario;
-use crate::reserva::{self, Reserva};
+use crate::reserva::Reserva;
 use crate::habitacion::Habitacion;
 use std::path::Path;
 use std::fs;
@@ -98,6 +97,7 @@ impl Sistema {
         id
     }
 
+    /// Obtiene los cuartos disponibles
     pub fn get_available_rooms(&self, date_start: &String, date_end: &String, cant_integrantes: u8) -> Vec<Habitacion> {
         let all_available_rooms = self.rooms.lock().unwrap();
         let reservations = self.reservations.lock().unwrap();
@@ -116,6 +116,7 @@ impl Sistema {
             .collect()
     }
 
+    /// Verifica si una habitación está disponible en las fechas dadas.
     pub fn is_room_available_given_date(&self, start: &String, end :&String) -> bool {
         let reservations = self.reservations.lock().unwrap();
         reservations.iter().all(|reservation| {

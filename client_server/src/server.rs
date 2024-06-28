@@ -8,11 +8,11 @@ use reservas::sistema::Sistema;
 #[derive(Deserialize)]
 /// Estructura de solicitud para la creación de una reserva
 struct ReservationRequest {
-    client_id: u32,
-    room_number: u32,
-    date_start: String,
-    date_end: String,
-    cant_integrantes: u8,
+    _client_id: u32,
+    _room_number: u32,
+    _date_start: String,
+    _date_end: String,
+    _cant_integrantes: u8,
 }
 
 #[derive(Serialize)]
@@ -73,18 +73,14 @@ async fn check_availability(info: web::Json<(String, String, u8)>, sistema: web:
     let date_end = data.1;
     let cant_integrantes = data.2;
 
-    print!("CheckAvailability => {:?} {:?} {:?}", date_start, date_end, cant_integrantes);
+    println!("Checking Availability..  => start date:{:?}, end date:{:?}, number of guests:{:?}", date_start, date_end, cant_integrantes);
     let available = sistema.get_available_rooms(&date_start, &date_end, cant_integrantes);
     HttpResponse::Ok().json(available)
-    /*
-    let available = sistema.is_room_available(info.room_number, &info.date_start, &info.date_end);
-    HttpResponse::Ok().json(AvailabilityResponse { available })*/
 }
 
 /// Funcion que se encarga de crear una reserva
 async fn create_reservation(info: web::Json<(u32, u32, String, String, u8)>, sistema: web::Data<Arc<Sistema>>) -> impl Responder {
     let info = info.into_inner();
-    // add_reservation(&self, client_id: u32, room_number: u32, date_start: String, date_end: String, cant_integrantes: u8) -> u32 {
     let user_id = info.0;
     let room_id = info.1;
     let date_start = info.2;
@@ -92,6 +88,8 @@ async fn create_reservation(info: web::Json<(u32, u32, String, String, u8)>, sis
     let cant_integrantes = info.4;
 
     let reservation_id = sistema.add_reservation(user_id, room_id, date_start, date_end, cant_integrantes);
+
+    println!("Reservation created with id: {}", reservation_id);
 
     HttpResponse::Ok().json(reservation_id)
 }
@@ -149,8 +147,9 @@ pub async fn main() -> std::io::Result<()> {
         rx.clone().changed().await.unwrap();
         // Signal received, time to shut down
         server_stop_flag_clone.store(true, Ordering::Relaxed);
-        if let Err(err) = sistema.save_reservations_to_csv("reservas.csv") {
-            eprintln!("Error saving reservations: {}", err);
+        match sistema.save_reservations_to_csv("reservas.csv") {
+            Ok(_) => println!("Reservations saved to file"),
+            Err(_) => println!("Error saving reservations"), 
         }
     });
 
@@ -169,7 +168,5 @@ pub async fn main() -> std::io::Result<()> {
 async fn stop_server(data: web::Data<watch::Sender<bool>>) -> HttpResponse {
     println!("Stopping server...");
     let _ = data.send(true); 
-    //HttpResponse::Ok().body("Server is stopping...");
     HttpResponse::Ok().finish()
-    //std::process::exit(0);
 }

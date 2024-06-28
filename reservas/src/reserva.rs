@@ -1,5 +1,3 @@
-use std::vec;
-
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
@@ -21,20 +19,23 @@ impl Reserva {
         Reserva { id, client_id, room_number_id, date_start, date_end, cant_integrantes }
     }
 
+    /// Obtiene el id del cliente.
     pub fn get_client_id(&self) -> u32 {
         self.client_id
     }
 
+    /// Obtiene los datos de la reserva.
     pub fn get_reserve_data(&self) -> (u32, u32, u32, String, String, u8) {
         (self.id, self.client_id, self.room_number_id, self.date_start.clone(), self.date_end.clone(), self.cant_integrantes)
     }
 
+    /// Obtiene el id de la habitación.
     pub fn get_room_number_id(&self) -> u32 {
         self.room_number_id
     }
 
+    /// Funcion que dada 2 fechas, verifica si la reserva se encuentra en el rango de fechas.
     pub fn intersection_between_dates(&self, date_start: &String, date_end: &String) -> bool {
-        // dada 2 fechas, se verifica si la reserva se encuentra en el rango de fechas
         let date_start_reserva = NaiveDate::parse_from_str(&self.date_start, "%Y-%m-%d").unwrap();
         let date_end_reserva = NaiveDate::parse_from_str(&self.date_end, "%Y-%m-%d").unwrap();
         let date_start_request = NaiveDate::parse_from_str(date_start, "%Y-%m-%d").unwrap();

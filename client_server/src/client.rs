@@ -1,13 +1,11 @@
 use reqwest::Client as HttpClient;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::io::{self, Write};
-use std::iter::Cloned;
 use reservas::{habitacion::Habitacion, usuario::Usuario};
 use reservas::reserva::Reserva;
 extern crate csv;
 mod input_validator;
 use input_validator::{DateValidator, EmailValidator, PasswordValidator, Validator};
-// Add the missing import for the `validate_email` function
 
 #[derive(Serialize)]
 /// Estructura de solicitud para la creación de una reserva
@@ -19,42 +17,7 @@ struct ReservationRequest {
     cant_integrantes: u8,
 }
 
-#[derive(Deserialize)]
-/// Estructura de respuesta para la disponibilidad de una fecha
-struct AvailabilityResponse {
-    available: bool,
-}
-
-/// Funcion que se encarga de verificar la disponibilidad de una habitacion
-async fn check_availability(http_client: &HttpClient, reservation: &Reserva) -> Result<bool, Box<dyn std::error::Error>> {
-    let url = "http://127.0.0.1:8080/check";
-    let request = ReservationRequest {
-        client_id: reservation.client_id,
-        room_number: reservation.room_number_id,
-        date_start: reservation.date_start.clone(),
-        date_end: reservation.date_end.clone(),
-        cant_integrantes: reservation.cant_integrantes,
-    };
-    let response = http_client.post(url).json(&request).send().await?;
-    let availability_response: AvailabilityResponse = response.json().await?;
-    Ok(availability_response.available)
-}
-
-/// Funcion que se encarga de crear una reserva
-async fn create_reservation(http_client: &HttpClient, user: &Usuario, room_number: u32, date_start: String, date_end: String, cant_integrantes: u8) -> Result<u32, Box<dyn std::error::Error>> {
-    let url = "http://127.0.0.1:8080/reserve";
-    let request = ReservationRequest {
-        client_id: user.get_id(),
-        room_number,
-        date_start,
-        date_end,
-        cant_integrantes,
-    };
-    let response = http_client.post(url).json(&request).send().await?;
-    let reservation_id: u32 = response.json().await?;
-    Ok(reservation_id)
-}
-
+/// Funcion que se encarga de preguntar las fechas y la cantidad de huespedes, y validarlo
 pub fn ask_dates_and_number_guest() -> (String, String, u8) {
     let mut date_start = String::new();
     let mut date_end = String::new();
@@ -63,8 +26,8 @@ pub fn ask_dates_and_number_guest() -> (String, String, u8) {
     let DateValidator = DateValidator;
     print!("Enter start date (YYYY-MM-DD): ");
     loop {
-        io::stdout().flush();
-        io::stdin().read_line(&mut date_start);
+        let _ = io::stdout().flush();
+        let _ = io::stdin().read_line(&mut date_start);
         match DateValidator.validate(&date_start) {
             Ok(_) => break,
             Err(e) => println!("{}", e),
@@ -73,8 +36,8 @@ pub fn ask_dates_and_number_guest() -> (String, String, u8) {
     }
     print!("Enter end date (YYYY-MM-DD): ");
     loop {
-        io::stdout().flush();
-        io::stdin().read_line(&mut date_end);
+        let _ = io::stdout().flush();
+        let _ = io::stdin().read_line(&mut date_end);
         match DateValidator.validate(&date_end) {
             Ok(_) => break,
             Err(e) => println!("{}", e),
@@ -83,8 +46,8 @@ pub fn ask_dates_and_number_guest() -> (String, String, u8) {
     }
     print!("Enter number of guests: ");
     loop {
-        io::stdout().flush();
-        io::stdin().read_line(&mut cant_integrantes);
+        let _ = io::stdout().flush();
+        let _ = io::stdin().read_line(&mut cant_integrantes);
         match cant_integrantes.trim().parse::<u8>() {
             Ok(_) => break,
             Err(_) => println!("Invalid number of guests. Please enter a valid number"),
@@ -96,6 +59,7 @@ pub fn ask_dates_and_number_guest() -> (String, String, u8) {
     (date_start.trim().to_owned(), date_end.trim().to_owned(), ucant_integrantes)
 
 }
+
 /// Funcion que se encarga de crear una reserva
 pub async fn menu_create_reservation(http_client: &HttpClient, user: &Usuario) -> Result<(), Box<dyn std::error::Error>> {
     let (date_start, date_end, cant_integrantes) = ask_dates_and_number_guest();
@@ -155,7 +119,7 @@ pub async fn delete_reservation(http_client: &HttpClient, user: &Usuario) -> Res
                     let response = http_client.post("http://127.0.0.1:8080/get_reservations").json(&user.get_id()).send().await?;
                     let list_of_reservations: Vec<Reserva> = response.json().await?;
                     for reserve in list_of_reservations.iter() {
-                        let (id, client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
+                        let (id, _client_id, _room_number_id, _date_start, _date_end, _cant_integrantes) = reserve.get_reserve_data();
                         if id == value {
                             let response = http_client.post("http://127.0.0.1:8080/delete_reservation").json(&id).send().await?;
                             let resultado: u32 = response.json().await?;
@@ -184,7 +148,7 @@ pub async fn modify_reservation(http_client: &HttpClient, user: &Usuario) -> Res
                 let response = http_client.post("http://127.0.0.1:8080/get_reservations").json(&user.get_id()).send().await?;
                 let list_of_reservations: Vec<Reserva> = response.json().await?;
                 for reserve in list_of_reservations.iter() {
-                    let (id, client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
+                    let (id, _client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
                     let d_start = date_start.clone(); 
                     let d_end = date_end.clone();
                     if id == value {
@@ -229,7 +193,7 @@ pub async fn modify_reservation(http_client: &HttpClient, user: &Usuario) -> Res
                                         io::stdin().read_line(&mut new_enter_date)?;
                                         let new_enter_date = new_enter_date.trim().to_owned(); 
                                         let new_d_start = new_enter_date.clone();  
-                                        let response = http_client.post("http://127.0.0.1:8080/delete_reservation").json(&id).send().await?;
+                                        let _response = http_client.post("http://127.0.0.1:8080/delete_reservation").json(&id).send().await?;
                                         let request = http_client.post("http://127.0.0.1:8080/check").json(&(new_enter_date, date_end, _cant_integrantes)).send().await?;
                                         let vec_habitaciones_disponibles: Vec<Habitacion> = request.json().await?;
                                         if vec_habitaciones_disponibles.iter().any(|hab| hab.id_habitacion() == room_number_id) {
@@ -239,7 +203,7 @@ pub async fn modify_reservation(http_client: &HttpClient, user: &Usuario) -> Res
                                             encontrado = true;
                                             break;
                                         } else {
-                                            let request = http_client.post("http://127.0.0.1:8080/reserve").json(&(user.get_id(), room_number_id, d_start, d_end, _cant_integrantes)).send().await?;
+                                            let _request = http_client.post("http://127.0.0.1:8080/reserve").json(&(user.get_id(), room_number_id, d_start, d_end, _cant_integrantes)).send().await?;
                                             println!("The room is not available for that date. Please delete this reservation and create a new one.");
                                             break;
                                         }
@@ -250,7 +214,7 @@ pub async fn modify_reservation(http_client: &HttpClient, user: &Usuario) -> Res
                                         io::stdin().read_line(&mut new_end_date)?;
                                         let new_end_date = new_end_date.trim().to_owned(); 
                                         let new_d_end = new_end_date.clone();  
-                                        let response = http_client.post("http://127.0.0.1:8080/delete_reservation").json(&id).send().await?;
+                                        let _response = http_client.post("http://127.0.0.1:8080/delete_reservation").json(&id).send().await?;
                                         let request = http_client.post("http://127.0.0.1:8080/check").json(&(date_start, new_end_date, _cant_integrantes)).send().await?;
                                         let vec_habitaciones_disponibles: Vec<Habitacion> = request.json().await?;
                                         if vec_habitaciones_disponibles.iter().any(|hab| hab.id_habitacion() == room_number_id) {
@@ -260,7 +224,7 @@ pub async fn modify_reservation(http_client: &HttpClient, user: &Usuario) -> Res
                                             encontrado = true;
                                             break;
                                         } else {
-                                            let request = http_client.post("http://127.0.0.1:8080/reserve").json(&(user.get_id(), room_number_id, d_start, d_end, _cant_integrantes)).send().await?;
+                                            let _request = http_client.post("http://127.0.0.1:8080/reserve").json(&(user.get_id(), room_number_id, d_start, d_end, _cant_integrantes)).send().await?;
                                             println!("The room is not available for that date. Please delete this reservation and create a new one.");
                                             break;
                                         }
@@ -392,7 +356,6 @@ async fn input_email_password() -> Result<(String, String), Box<dyn std::error::
 /// Funcion que se encarga de crear un usuario
 async fn menu_create_user(http_client: &HttpClient) -> Result<(), Box<dyn std::error::Error>> {
     let (email, password) = input_email_password().await?;
-    // hasta acá mail y password envia bien.
     let result = http_client.post("http://127.0.0.1:8080/create_user").json(&(email, password)).send().await?;
 
     if result.status().is_success() {
@@ -405,8 +368,8 @@ async fn menu_create_user(http_client: &HttpClient) -> Result<(), Box<dyn std::e
 /// Funcion que se encarga de leer el nombre del usuario
 async fn menu_login_user(http_client: &HttpClient) -> Result<Usuario, Box<dyn std::error::Error>> {
     let (email, password) = input_email_password().await?; 
-    // las validaciones de email y password son las mismas que en create_user
 
+    // las validaciones de email y password son las mismas que en create_user
     let result: reqwest::Response = http_client.post("http://127.0.0.1:8080/login").json(&(email, password)).send().await?;
 
     if result.status().is_success() {
@@ -449,7 +412,7 @@ async fn logged_menu(http_client: &HttpClient, user: &Usuario) -> Result<(), Box
                             println!("{0: <16} | {1: <10} | {2: <10} | {3: <10} | {4: <10}",
                                 "Reservation ID", "Room Number", "Start Date", "End Date", "Guests");
                             for reserve in list_of_reservations.iter() {
-                                let (id, client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
+                                let (id, _client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
                                 println!("{0: <16} | {1: <11} | {2: <10} | {3: <9} | {4: <11}",
                                 id, room_number_id, date_start, date_end, _cant_integrantes);
                             }
@@ -467,7 +430,7 @@ async fn logged_menu(http_client: &HttpClient, user: &Usuario) -> Result<(), Box
                             println!("{0: <16} | {1: <10} | {2: <10} | {3: <10} | {4: <10}",
                                 "Reservation ID", "Room Number", "Start Date", "End Date", "Guests");
                             for reserve in list_of_reservations.iter() {
-                                let (id, client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
+                                let (id, _client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
                                 println!("{0: <16} | {1: <11} | {2: <10} | {3: <9} | {4: <11}",
                                 id, room_number_id, date_start, date_end, _cant_integrantes);
                             }
@@ -487,7 +450,7 @@ async fn logged_menu(http_client: &HttpClient, user: &Usuario) -> Result<(), Box
                             println!("{0: <16} | {1: <10} | {2: <10} | {3: <10} | {4: <10}",
                                 "Reservation ID", "Room Number", "Start Date", "End Date", "Guests");
                             for reserve in list_of_reservations.iter() {
-                                let (id, client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
+                                let (id, _client_id, room_number_id, date_start, date_end, _cant_integrantes) = reserve.get_reserve_data();
                                 println!("{0: <16} | {1: <11} | {2: <10} | {3: <9} | {4: <11}",
                                 id, room_number_id, date_start, date_end, _cant_integrantes);
                             }

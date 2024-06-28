@@ -28,9 +28,10 @@ impl fmt::Display for ValidationError {
     }
 }
 
-// Validador para el email
+/// Validador para el email
 pub struct EmailValidator;
 
+/// Implementación de Validator para EmailValidator
 impl Validator<()> for EmailValidator {
     /// Valida que el input sea un email válido
     fn validate(&self, input: &str) -> Result<(), ValidationError> {
@@ -43,9 +44,10 @@ impl Validator<()> for EmailValidator {
     }
 }
 
-// Validador para el formato de fecha ingresada
+/// Validador para el formato de fecha ingresada
 pub struct DateValidator;
 
+/// Implementación de Validator para DateValidator
 impl Validator<(i32, i32,i32)> for DateValidator {
     fn validate(&self, input: &str) -> Result<(i32, i32, i32), ValidationError> {
         if NaiveDate::parse_from_str( input.trim(), "%Y-%m-%d").is_ok() {
@@ -61,10 +63,10 @@ impl Validator<(i32, i32,i32)> for DateValidator {
     }
 }
 
-// Validador para la contraseña
+/// Validador para la contraseña
 pub struct PasswordValidator;
 
-// Implementación de Validator para PasswordValidator
+/// Implementación de Validator para PasswordValidator
 impl Validator<()> for PasswordValidator {
     fn validate(&self, input: &str) -> Result<(), ValidationError> {
         let _min_password_len = 5;
